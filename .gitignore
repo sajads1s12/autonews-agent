@@ -1,0 +1,42 @@
+# =============================================================================
+#  الأسرار — لا تُرفع أبداً (تُضاف في GitHub Secrets)
+# =============================================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# =============================================================================
+#  ملفات مولّدة — يُعاد بناؤها في كل تشغيل
+# =============================================================================
+*.pyc
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.DS_Store
+logs/*.log
+state/*.tmp
+
+# ⚠️ ممنوع تجاهل: state/state.json  → ذاكرة النظام (منع التكرار)
+# ⚠️ ممنوع تجاهل: logs/report.md · logs/dashboard.html · logs/best_of_week.md
+#    (تُرفع كـ Artifact وتظهر في المستودع — وهي دليل عملك)
+# ملاحظة: .github/** لا يُتجاهل أبداً
+
+# Private runtime data
+state/*.json
+logs/
+.env
+.env.*
+!.env.example
+*.log
+
+config/channels.yml
+config/settings.yml

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>مصدر تجريبي</title>
+    <link>https://example.com</link>
+    <description>خلاصة اختبار</description>
+    <item>
+      <title>عنوان الخبر الأول عن الاقتصاد الرقمي في العراق</title>
+      <link>https://example.com/news/1</link>
+      <description><![CDATA[<p>تفاصيل الخبر الأول &amp; معلومات إضافية مهمة.</p>]]></description>
+      <pubDate>Mon, 27 Oct 2025 10:00:00 +0000</pubDate>
+      <category>اقتصاد</category>
+    </item>
+    <item>
+      <title>عنوان الخبر الثاني عن التقنية والذكاء الاصطناعي</title>
+      <link>https://example.com/news/2</link>
+      <description>تفاصيل الخبر الثاني</description>
+      <pubDate>Mon, 27 Oct 2025 12:30:00 +0000</pubDate>
+      <category>تقنية</category>
+    </item>
+  </channel>
+</rss>

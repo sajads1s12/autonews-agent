@@ -1,0 +1,68 @@
+name: ⚙️ بوت إعداد القنوات
+
+# ---------------------------------------------------------------------------
+#  لماذا Pull وليس Webhook؟
+#  الويبهوك يحتاج خادماً دائماً (VPS). هذا يستخدم getUpdates كل ٥ دقائق —
+#  مجاني تماماً على GitHub Actions، ويعمل من جوالك بلا حاسوب.
+#
+#  الاستخدام:
+#    ١) أضف الأسرار: TELEGRAM_BOT_TOKEN · TELEGRAM_ADMIN_CHAT_ID
+#    ٢) Actions ← ⚙️ بوت إعداد القنوات ← Run workflow
+#    ٣) افتح تيليجرام: وصلتك لوحة أزرار — اضغط القناة وأرسل معرّفها
+# ---------------------------------------------------------------------------
+on:
+  schedule:
+    - cron: "*/5 * * * *"      # يستجيب خلال ٥ دقائق كحدّ أقصى
+  workflow_dispatch:
+    inputs:
+      send_panel:
+        description: "أرسل لوحة الإعداد الآن"
+        type: boolean
+        default: true
+
+concurrency:
+  group: autonews-setup
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  setup:
+    name: Channel setup bot
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    env:
+      PYTHONPATH: src
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 📦 تثبيت الاعتماديات
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🔄 معالجة ضغطات الأزرار والرسائل
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          SETUP_ALLOWED_USERS: ${{ secrets.SETUP_ALLOWED_USERS }}
+        run: python -m autonews.setup_main --poll --rounds 3
+
+      - name: 📤 إرسال لوحة الأزرار (عند الطلب)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.send_panel == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+        run: python -m autonews.setup_main --panel
+
+      - name: 💾 حفظ الإعدادات
+        if: always()
+        run: bash scripts/save_state.sh "[skip ci] ⚙️ إعداد القنوات"

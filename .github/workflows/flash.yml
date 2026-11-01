@@ -1,0 +1,92 @@
+name: ⚡ Flash Lane — نشر عاجل سريع
+
+# ---------------------------------------------------------------------------
+#  لماذا 5 دقائق وليس 1؟
+#  GitHub يرفض الجدولة الأقل من 5 دقائق، ناهيك عن أنه يؤخّر التشغيل عند الازدحام.
+#  أي أن هذه القناة تعطي تأخيراً واقعياً بين 5 و 20 دقيقة.
+#
+#  للحصول على ثوانٍ (منافسة حقيقية للقنوات المباشرة):
+#    مشغّل مستمر على VPS صغير (2$ شهرياً) أو Docker:
+#       python -m autonews.flash_main --interval 30
+#    أو Railway/Render/Fly.io (خطة مجانية/رخيصة) بنفس الأمر.
+#
+#  ملاحظة: هذا السير عمل **منفصل** عن الدورة الكاملة، فلا يزعج تقاريرها ولا سقوفها.
+# ---------------------------------------------------------------------------
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: autonews-flash
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  flash:
+    name: Urgent news check
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    env:
+      PYTHONPATH: src
+      TZ_OFFSET: "3"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 📦 تثبيت الاعتماديات
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: ♻️ تجهيز مجلد الحالة
+        # الحالة محفوظة في المستودع نفسه (state/state.json) — تأتي مع checkout
+        run: |
+          mkdir -p state logs
+          if [ -f state/state.json ]; then
+            echo "✅ حالة سابقة موجودة ($(wc -c < state/state.json) بايت)"
+          else
+            echo "ℹ️ بدء سجل جديد (أول تشغيل)"
+          fi
+
+      - name: ⚡ فحص عاجل ونشر
+        env:
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TECH_CHAT_ID: ${{ secrets.TELEGRAM_TECH_CHAT_ID }}
+          TELEGRAM_SCOPED_CHAT_ID: ${{ secrets.TELEGRAM_SCOPED_CHAT_ID }}
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
+          FACEBOOK_USER_TOKEN: ${{ secrets.FACEBOOK_USER_TOKEN }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          ALERT_BOT_TOKEN: ${{ secrets.ALERT_BOT_TOKEN }}
+          ALERT_CHAT_ID: ${{ secrets.ALERT_CHAT_ID }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || 'false' }}
+        run: python -m autonews.flash_main
+
+      - name: 📊 لوحة الأداء
+        if: always()
+        continue-on-error: true
+        run: python -m autonews.dashboard_main
+
+      - name: 💾 حفظ الحالة والتقارير في المستودع
+        if: always()
+        run: bash scripts/save_state.sh "[skip ci] ⚡ حالة المسار السريع"

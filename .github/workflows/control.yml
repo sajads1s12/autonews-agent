@@ -1,0 +1,74 @@
+# =============================================================================
+#  ✅ معالجة الموافقات والتحكّم — كل ٥ دقائق
+#
+#  لماذا ملف منفصل عن setup.yml؟
+#    • هذا يشتغل كل ٥ دقائق طول اليوم (ضغطات «نشر/حذف» تحتاج استجابة سريعة).
+#    • وقته قصير جداً (خطوة واحدة، بلا RSS ولا AI) ⇒ لا يستهلك حصة Actions.
+#    • يفصل مسؤولية «التحكّم» عن مسؤولية «الإعداد» فتسهل متابعتهما.
+# =============================================================================
+name: ✅ الموافقات والتحكّم
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"      # كل ٥ دقائق
+  workflow_dispatch:
+    inputs:
+      resend:
+        description: "إعادة إرسال لوحة التحكّم"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autonews-control
+  cancel-in-progress: false
+
+jobs:
+  control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: ⬇️ جلب المستودع
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 📦 الاعتماديات
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: ♻️ تجهيز مجلد الحالة
+        run: mkdir -p state logs
+
+      - name: 🎛 معالجة الضغطات (موافقة/حذف/إيقاف/بصمة)
+        env:
+          PYTHONPATH: src
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          SETUP_ALLOWED_USERS: ${{ secrets.SETUP_ALLOWED_USERS }}
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ANIME_CHAT_ID: ${{ secrets.TELEGRAM_ANIME_CHAT_ID }}
+          TELEGRAM_SPORTS_CHAT_ID: ${{ secrets.TELEGRAM_SPORTS_CHAT_ID }}
+          TELEGRAM_TECH_CHAT_ID: ${{ secrets.TELEGRAM_TECH_CHAT_ID }}
+          TELEGRAM_ECON_CHAT_ID: ${{ secrets.TELEGRAM_ECON_CHAT_ID }}
+          TELEGRAM_GAMES_CHAT_ID: ${{ secrets.TELEGRAM_GAMES_CHAT_ID }}
+          TELEGRAM_LOCAL_CHAT_ID: ${{ secrets.TELEGRAM_LOCAL_CHAT_ID }}
+        run: |
+          set -o pipefail
+          python -m autonews.setup_main --poll --rounds 3 --wait 2 || true
+          if [ "${{ github.event.inputs.resend }}" = "true" ]; then
+            python -m autonews.setup_main --panel || true
+          fi
+
+      - name: 💾 حفظ الحالة (المعرّفات + الطابور + البصمات)
+        if: always()
+        run: bash scripts/save_state.sh "[skip ci] تحديث التحكّم والموافقات"

@@ -1,0 +1,67 @@
+name: 🧪 CI — فحص الجودة والاختبارات
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: pytest + config check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: تثبيت الاعتماديات
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: تشغيل الاختبارات (بلا شبكة)
+        env:
+          PYTHONPATH: src
+        run: pytest -q
+
+      - name: 🔐 التأكد من عدم تسرّب أسرار إلى المستودع
+        run: |
+          echo "فحص شامل لأنماط الأسرار (Gemini · تيليجرام · فيسبوك · GitHub · Slack)…"
+          bash scripts/check_secrets.sh
+
+      - name: ✅ التحقّق من وجود الحالة والتقارير (لا تُحجب)
+        run: |
+          git check-ignore -q state/state.json && { echo "❌ state.json مُتجاهَل — سيفقد النظام ذاكرته"; exit 1; } || echo "✅ state/state.json متعقَّب"
+
+      - name: التحقّق من صحة ملفات الإعدادات
+        env:
+          PYTHONPATH: src
+          AI_DISABLED: "true"
+          DRY_RUN: "true"
+        run: python -m autonews.main --check || true
+
+      - name: فحص السلوك الاحتياطي بلا مفاتيح
+        env:
+          PYTHONPATH: src
+          AI_DISABLED: "true"
+          DRY_RUN: "true"
+          ENABLED_CHANNELS: console_preview
+        run: python -c "
+          from autonews.config_loader import load_config
+          from autonews.ai.writer import ContentWriter
+          from autonews.ingest import Article
+          s = load_config('config')
+          w = ContentWriter(None, s)
+          a = Article(source_id='t', source_name='اختبار',
+                      title='عنوان تجريبي طويل بما يكفي لاجتياز الفلترة',
+                      summary='ملخص تجريبي للخبر ' * 5, url='https://example.com/1')
+          p = w.write(a, s.channels[0])
+          assert p.used_fallback and p.body, 'القالب الاحتياطي لا يعمل'
+          print('✅ القالب الاحتياطي يعمل:', len(p.body), 'حرفاً')
+          "
