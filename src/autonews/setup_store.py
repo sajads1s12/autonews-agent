@@ -122,7 +122,8 @@ class SetupStore:
         b = self.get(channel_id)
         b.set_ok(chat_id, **meta)
         self.save()
-        log.info("🔗 رُبطت القناة %s ← %s", channel_id, chat_id)
+        # لا نطبع chat_id: السجلات تُرفع في Actions وتظهر للمشرفين
+        log.info("🔗 رُبطت القناة %s ✓ (المعرّف في المستودع الخاص)", channel_id)
         return b
 
     def unbind(self, channel_id: str) -> bool:

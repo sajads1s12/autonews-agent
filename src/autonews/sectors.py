@@ -12,7 +12,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Iterable
 
-from .utils import normalize_arabic
+from .utils import get_logger, normalize_arabic
+
+log = get_logger("autonews.sectors")
 
 # --------------------------------------------------------------------------- #
 #  جدول القطاعات
@@ -29,7 +31,9 @@ class SectorProfile:
     hashtags: tuple[str, ...] = ()
     style: str = ""
     lang: str = "ar"
-    priority: int = 0                        # عند التعادل: الأعلى يفوز (الأخصّ)
+    priority: int = 0
+    # استعلامات بحث جاهزة — تُستخدم لتوليد مصادر Google News للقطاع تلقائياً
+    queries: tuple[str, ...] = ()                        # عند التعادل: الأعلى يفوز (الأخصّ)
 
 
 _STYLE_DEFAULT = (
@@ -442,3 +446,180 @@ def apply_to_channel(channel_id: str, name: str, *, config_dir: str = "config",
 
 __all__ = ["SectorProfile", "SECTORS", "clean_name", "score", "detect",
            "detect_many", "sources_for", "summary", "apply_to_channel"]
+
+
+# --------------------------------------------------------------------------- #
+#  التصنيف اليدوي — «فعّل/عطّل» و «غيّر نوع القناة»
+# --------------------------------------------------------------------------- #
+def sector_of(channel_id: str, *, config_dir: str = "config") -> SectorProfile | None:
+    """القطاع المسجَّل للقناة.
+
+    المصدر الأول: وسم القناة المطابق لوسوم قطاع (الوسم يُكتب من `apply_to_channel`).
+    لا نضيف حقلاً جديداً في YAML — الوسوم موجودة أصلاً وتعمل في التوزيع.
+    """
+    from pathlib import Path
+
+    import yaml
+
+    path = Path(config_dir) / "channels.yml"
+    if not path.exists():
+        return None
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    channel = next((c for c in (data.get("channels") or [])
+                    if str(c.get("id")) == channel_id), None)
+    if not channel:
+        return None
+    tags = {str(t).strip().lower() for t in (channel.get("tags") or [])}
+    best: tuple[int, SectorProfile] | None = None
+    for profile in SECTORS.values():
+        if not profile.tags:
+            continue
+        hits = len(tags & {t.strip().lower() for t in profile.tags})
+        if hits and (best is None or hits > best[0]):
+            best = (hits, profile)
+    if best:
+        return best[1]
+    # لا وسم مطابق: جرّب الاسم
+    return detect(str(channel.get("name") or ""))
+
+
+def set_sector(channel_id: str, sector_key: str, *,
+               config_dir: str = "config") -> tuple[bool, str]:
+    """تغيير قطاع قناة يدوياً: يبدّل وسومها ومصادرها معاً (متّسقان دائماً)."""
+    from .editor import update_channel_sources, update_channel_tags
+
+    profile = SECTORS.get(sector_key)
+    if profile is None:
+        return False, f"❌ قطاع غير معروف: {sector_key}"
+
+    current = sector_of(channel_id, config_dir=config_dir)
+    # نحذف وسوم القطاع القديم أولاً حتى لا تختلط الاختصاصات
+    remove = list(current.tags) if current and current.key != profile.key else []
+    res_t = update_channel_tags(channel_id, add=list(profile.tags), remove=remove,
+                                config_dir=config_dir)
+    if not res_t.ok:
+        return False, res_t.message
+
+    picked, why = sources_for(profile, _load_sources(config_dir))
+    res_s = update_channel_sources(channel_id, picked, config_dir=config_dir)
+    if not res_s.ok:
+        return False, res_s.message
+
+    log_line = f"{profile.icon} صار اختصاص القناة: <b>{profile.label}</b>"
+    details = [log_line, f"• الوسوم: {', '.join(profile.tags) or '—'}",
+               f"• المصادر: {len(picked) if picked != ['*'] else 'كل'} ({why})"]
+    if current and current.key != profile.key:
+        details.insert(1, f"• كان: {current.icon} {current.label}")
+    return True, "\n".join(details)
+
+
+QUERIES: dict[str, tuple[str, ...]] = {
+    "anime": ("أنمي جديد when:2d", "مانغا إصدار when:3d"),
+    "gaming": ("لعبة جديدة إطلاق when:3d", "تحديث لعبة when:2d"),
+    "sports": ("الدوري العراقي when:1d", "مباراة اليوم when:1d"),
+    "tech": ("ذكاء اصطناعي تقنية when:2d", "هاتف جديد إعلان when:3d"),
+    "economy": ("الدولار العراق أسعار when:1d", "الذهب النفط when:1d"),
+    "crypto": ("بيتكوين عملات رقمية when:2d",),
+    "health": ("صحة دراسة طبية when:2d",),
+    "security": ("أمن العراق when:1d",),
+    "politics": ("البرلمان العراق قرار when:1d",),
+    "culture": ("ثقافة فن مهرجان when:3d",),
+    "weather": ("طقس العراق when:1d",),
+    "services": ("خدمات محافظات العراق when:1d",),
+    "education": ("جامعات تعليم منح when:3d",),
+    "news": ("أخبار العراق when:1d",),
+}
+
+
+def _attach_queries() -> None:
+    """ربط الاستعلامات بالقطاعات بعد تعريفها كلها."""
+    for key, queries in QUERIES.items():
+        if key in SECTORS:
+            SECTORS[key].queries = tuple(queries)
+
+
+_attach_queries()
+
+
+def gnews_url(query: str) -> str:
+    """رابط Google News RSS عربي جاهز."""
+    from urllib.parse import quote
+
+    return f"https://news.google.com/rss/search?q={quote(query)}&hl=ar&gl=IQ&ceid=IQ:ar"
+
+
+def suggest_sources(sector: SectorProfile, *,
+                    existing: Iterable[dict] | None = None) -> list[dict]:
+    """مصادر جاهزة لقطاع لا يوجد له مصدر (لإضافتها بأمر واحد).
+
+    يعيد قائمة إعدادات جاهزة لـ settings.yml، متجاهلاً ما هو موجود فعلاً.
+    """
+    have = {str(s.get("id")) for s in (existing or [])}
+    out: list[dict] = []
+    for query in sector.queries:
+        slug = re.sub(r"[^a-z0-9]+", "_", query.split(" when")[0].lower())
+        # معرّف لاتيني قصير من الاستعلام العربي
+        sid = f"gnews_{sector.key}_{len(out) + 1}"
+        if sid in have:
+            continue
+        out.append({"id": sid, "name": f"{sector.label} — {query.split(' when')[0]}",
+                    "url": gnews_url(query), "type": "rss", "enabled": True,
+                    "tags": list(sector.tags) or ["أخبار"], "max_items": 8})
+    return out
+
+
+def ensure_sources(sector: SectorProfile, *, config_dir: str = "config") -> str:
+    """يضيف مصادر مقترحة للقطاع إن لم يكن له أي مصدر. يعيد ملخّصاً.
+
+    القاعدة: **لا نصمت**. قناة بلا مصادر لا تنشر — وهذا أسوأ من نشر عام.
+    """
+    from .editor import add_source  # noqa: F401  (نستخدم الإلحاق المباشر أدناه)
+    from .utils import get_logger as _gl
+
+    sources = _load_sources(config_dir)
+    picked, _ = sources_for(sector, sources)
+    if picked != ["*"]:
+        return ""                              # له مصادر فعلاً
+
+    new_items = suggest_sources(sector, existing=sources)
+    if not new_items:
+        return ""
+
+    from pathlib import Path
+
+    import yaml
+
+    path = Path(config_dir) / "settings.yml"
+    text = path.read_text(encoding="utf-8")
+    block = ""
+    for item in new_items:
+        tags = ", ".join(f'"{t}"' for t in item["tags"])
+        block += (
+            f"\n  - id: {item['id']}\n"
+            f'    name: "{item["name"]}"\n'
+            f'    url: "{item["url"]}"\n'
+            f"    type: rss\n    enabled: true\n"
+            f"    tags: [{tags}]\n    max_items: {item['max_items']}\n"
+        )
+    new_text = text.rstrip() + "\n" + block
+    data = yaml.safe_load(new_text) or {}
+    if not isinstance(data.get("sources"), list):
+        _gl("autonews.sectors").warning("تعذّر إضافة مصادر — YAML غير صالح")
+        return ""
+    path.write_text(new_text, encoding="utf-8")
+    return f"➕ أضفت {len(new_items)} مصدراً جديداً لـ{sector.label}"
+
+
+def catalog(config_dir: str = "config") -> list[dict]:
+    """كل القطاعات للعرض في البوت (بعدد مصادرها)."""
+    sources = _load_sources(config_dir)
+    out = []
+    for profile in SECTORS.values():
+        picked, _ = sources_for(profile, sources)
+        out.append({"key": profile.key, "label": profile.label, "icon": profile.icon,
+                    "tags": list(profile.tags),
+                    "sources": len(picked) if picked != ["*"] else "كل"})
+    return out
+
+
+__all__ += ["sector_of", "set_sector", "catalog"]

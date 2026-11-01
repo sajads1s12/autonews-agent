@@ -25,6 +25,10 @@ if __package__ in (None, ""):  # pragma: no cover
 from .ai import AIUnavailable, ContentWriter, KeyRotator  # noqa: E402
 from .breaking import is_breaking, priority_of  # noqa: E402
 from .config_loader import Channel, ConfigError, Settings, load_config  # noqa: E402
+from .control import (  # noqa: E402
+    KIND_APPROVAL, KIND_SCHEDULED, ControlStore, decide, due_iso,
+    local_hour, minutes_until_open, preview_text,
+)
 from .images import fetch_article_image  # noqa: E402
 from .ingest import Article, fetch_all_with_status  # noqa: E402
 from .notify import Notifier  # noqa: E402

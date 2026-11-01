@@ -1,11 +1,15 @@
-name: 🤖 AutoNews Agent — دورة النشر التلقائي
+# =============================================================================
+#  🤖 الدورة الأساسية — كل ساعتين
+#
+#  الجدولة بتوقيت UTC:  "0 */2 * * *" = 00, 02, 04 … UTC
+#                                       = 03, 05, 07 … بغداد (UTC+3)
+#
+#  ⚠️ صراحة: Cron في GitHub Actions **ليس دقيقاً**. قد يتأخّر ٥–٣٠ دقيقة عند
+#  الازدحام، وقد يُلغى نادراً. الأخبار العاجلة تعتمد على flash.yml وليس هنا.
+#  GitHub Actions ليس سيرفراً دائماً متّصلاً — كل تشغيل بيئة جديدة تُدمَّر بعده.
+# =============================================================================
+name: 🤖 الدورة الأساسية — نشر دوري
 
-# ---------------------------------------------------------------------------
-#  الجدولة: كل ساعتين. GitHub Actions يستخدم UTC.
-#  cron "0 */2 * * *" = 00:00, 02:00, 04:00 ... UTC
-#                     = 03:00, 05:00, 07:00 ... بتوقيت بغداد (UTC+3)
-#  قد يتأخّر التشغيل المجدول بضع دقائق عند ازدحام GitHub — هذا سلوك طبيعي.
-# ---------------------------------------------------------------------------
 on:
   schedule:
     - cron: "0 */2 * * *"
@@ -16,92 +20,62 @@ on:
         type: boolean
         default: false
       limit:
-        description: "أقصى عدد مقالات في هذا التشغيل (0 = الافتراضي)"
+        description: "أقصى عدد مقالات (0 = الافتراضي)"
         type: string
         default: "0"
       channels:
-        description: "قنوات محدّدة مفصولة بفاصلة (فراغ = كل القنوات)"
+        description: "قنوات محدّدة مفصولة بفاصلة (فراغ = الكل)"
         type: string
         default: ""
       require_review:
-        description: "إرسال كل المنشورات كمسوّدات للموافقة قبل النشر"
+        description: "إرسال المنشورات كمسوّدات للموافقة"
         type: boolean
         default: false
 
-# منع تداخل تشغيلين في الوقت نفسه (حرج لتفادي النشر المزدوج)
 concurrency:
-  group: autonews-agent
+  group: autonews-main            # 🚫 لا تشغيلين متزامنين (يمنع النشر المزدوج)
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  run-agent:
-    name: Run AutoNews cycle
+  cycle:
+    name: دورة النشر
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
     env:
       PYTHONPATH: src
       TZ_OFFSET: "3"
+      STATE_REPO: ${{ secrets.STATE_REPO }}
+      STATE_REPO_TOKEN: ${{ secrets.STATE_REPO_TOKEN }}
 
     steps:
-      - name: ⬇️ جلب المستودع
+      - name: ⬇️ جلب الكود
         uses: actions/checkout@v4
 
-      - name: 🐍 تهيئة Python
-        uses: actions/setup-python@v5
+      - name: 🧰 تجهيز البيئة
+        uses: ./.github/actions/setup
+
+      - name: 🔗 استعادة الحالة (منع التكرار يعتمد عليها)
+        uses: ./.github/actions/state
         with:
-          python-version: "3.12"
-          cache: pip
+          action: restore
 
-      - name: 📦 تثبيت الاعتماديات
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: ♻️ تجهيز مجلد الحالة
-        # الحالة محفوظة في المستودع (state/state.json) وتأتي مع checkout —
-        # لا كاش مؤقت (الكاش يُحذف بعد 7 أيام ويُنسي النظام ذاكرته).
-        run: |
-          mkdir -p state logs
-          if [ -f state/state.json ]; then
-            echo "✅ حالة سابقة موجودة ($(wc -c < state/state.json) بايت · تشغيلات=$(python -c "import json;print(json.load(open('state/state.json')).get('runs',0))" 2>/dev/null || echo '?'))"
-          else
-            echo "ℹ️ بدء سجل جديد (أول تشغيل)"
-          fi
-
-      # كل الأسرار تُمرَّر هنا مرّة واحدة لكل الخطوات
       - name: 🩺 فحص الصحة والإعدادات
         continue-on-error: true
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
-          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
-          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
-          GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
-          GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
-          GEMINI_MODELS: ${{ secrets.GEMINI_MODELS }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_TECH_CHAT_ID: ${{ secrets.TELEGRAM_TECH_CHAT_ID }}
-          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
-          FACEBOOK_USER_TOKEN: ${{ secrets.FACEBOOK_USER_TOKEN }}
-          X_API_KEY: ${{ secrets.X_API_KEY }}
-          X_API_SECRET: ${{ secrets.X_API_SECRET }}
-          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
-          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
-          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
-          ALERT_BOT_TOKEN: ${{ secrets.ALERT_BOT_TOKEN }}
-          ALERT_CHAT_ID: ${{ secrets.ALERT_CHAT_ID }}
         run: python -m autonews.main --check
 
       - name: 🚀 تشغيل دورة النشر
         id: run
         env:
-          # ---- مفاتيح Gemini (5 مفاتيح: مجتمعة أو منفردة) ----
+          # ---- مفاتيح Gemini (٥: مجتمعة أو منفردة) ----
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
           GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
@@ -116,58 +90,38 @@ jobs:
           # ---- فيسبوك ----
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
-          FACEBOOK_USER_TOKEN: ${{ secrets.FACEBOOK_USER_TOKEN }}
-          # ---- X ----
+          # ---- X (اختياري) ----
           X_API_KEY: ${{ secrets.X_API_KEY }}
           X_API_SECRET: ${{ secrets.X_API_SECRET }}
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
-          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
-          # ---- التنبيهات والمراجعة البشرية ----
+          # ---- التنبيهات ----
           ALERT_BOT_TOKEN: ${{ secrets.ALERT_BOT_TOKEN }}
           ALERT_CHAT_ID: ${{ secrets.ALERT_CHAT_ID }}
-          REQUIRE_REVIEW: ${{ github.event.inputs.require_review == 'true' && 'true' || vars.REQUIRE_REVIEW || 'false' }}
-          # ---- تحكّم التشغيل (تُملأ فقط عند التشغيل اليدوي) ----
-          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || 'false' }}
+          # ---- تحكّم التشغيل (يدوي فقط) ----
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || '' }}
+          MAX_ITEMS_PER_RUN: ${{ github.event.inputs.limit != '0' && github.event.inputs.limit || '' }}
           ENABLED_CHANNELS: ${{ github.event.inputs.channels }}
-          INPUT_LIMIT: ${{ github.event.inputs.limit }}
-        run: |
-          if [ -n "${INPUT_LIMIT:-}" ] && [ "$INPUT_LIMIT" != "0" ]; then
-            python -m autonews.main --limit "$INPUT_LIMIT"
-          else
-            python -m autonews.main
-          fi
+          REQUIRE_REVIEW: ${{ github.event.inputs.require_review == 'true' && 'true' || '' }}
+        run: python -m autonews.main --once
 
-      - name: 📊 لوحة الأداء + أفضل أسبوع
+      - name: 📊 بناء اللوحة والتقارير
         if: always()
         continue-on-error: true
         run: python -m autonews.dashboard_main
 
-      - name: 💾 حفظ الحالة في المستودع
+      - name: 💾 حفظ الحالة
         if: always()
-        run: bash scripts/save_state.sh "[skip ci] 🤖 حالة الدورة العادية"
+        uses: ./.github/actions/state
+        with:
+          action: save
+          message: "[state] 🤖 الدورة الأساسية"
 
-      - name: 📄 رفع التقرير كـ Artifact
+      - name: 📤 أرشفة التقرير (تشخيص بلا أسرار)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: autonews-report-${{ github.run_number }}
-          path: |
-            logs/
-            state/
-          retention-days: 14
-          if-no-files-found: warn
-
-      - name: 🧾 ملخّص في واجهة Actions
-        if: always()
-        run: |
-          if [ -f logs/report.md ]; then
-            cat logs/report.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "⚠️ لم يُنشأ تقرير — راجع السجلّات أعلاه." >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ -f logs/best_of_week.md ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "---" >> "$GITHUB_STEP_SUMMARY"
-            cat logs/best_of_week.md >> "$GITHUB_STEP_SUMMARY"
-          fi
+          name: report-${{ github.run_id }}
+          path: logs/report.md
+          retention-days: 7
+          if-no-files-found: ignore

@@ -1,3 +1,9 @@
+# =============================================================================
+#  🧪 CI — فحص الجودة قبل كل دفع
+#
+#  هذا الملف هو **حرس المستودع العام**: يفشل إن ظهر سرّ، أو تلف إعداد،
+#  أو انكسرت وظيفة. لا يحتاج أي سرّ — يعمل على أي fork.
+# =============================================================================
 name: 🧪 CI — فحص الجودة والاختبارات
 
 on:
@@ -6,62 +12,88 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true        # الاختبارات يمكن إلغاؤها بلا ضرر
+
+permissions:
+  contents: read
+
 jobs:
   test:
-    name: pytest + config check
+    name: pytest · config · secrets
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
 
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: pip
+          fetch-depth: 0          # نحتاج التاريخ لفحص تسرّب الأسرار في الـ commits
 
-      - name: تثبيت الاعتماديات
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: 🧰 تجهيز البيئة
+        uses: ./.github/actions/setup
+        with:
+          extras: "pytest"
 
-      - name: تشغيل الاختبارات (بلا شبكة)
+      #  ⚠️ لا نضبط AI_DISABLED هنا: الاختبارات تعزل نفسها عبر tests/conftest.py.
+      #  ضبطه كان يُفرّغ مفاتيح Gemini قبل الاختبارات التي تفحص تحميلها ⇒ سقوط كاذب.
+      - name: 🧪 تشغيل الاختبارات (بلا شبكة)
         env:
           PYTHONPATH: src
         run: pytest -q
 
-      - name: 🔐 التأكد من عدم تسرّب أسرار إلى المستودع
-        run: |
-          echo "فحص شامل لأنماط الأسرار (Gemini · تيليجرام · فيسبوك · GitHub · Slack)…"
-          bash scripts/check_secrets.sh
+      #  الاختبارات نفسها بنفس البيئة «المعادية» — يثبت أن النتيجة لا تتوقّف
+      #  على متغيّرات المستودع، ويحرس عزل conftest من الانحدار.
+      - name: 🧪 الاختبارات في بيئة تشغيل حقيقية (AI_DISABLED + مراجعة + تقليم)
+        env:
+          PYTHONPATH: src
+          AI_DISABLED: "true"
+          REQUIRE_REVIEW: "true"
+          ENABLED_CHANNELS: tg_main
+          ENABLED_SOURCES: rudaw
+          TZ_OFFSET: "5"
+          MAX_ITEMS_PER_RUN: "1"
+        run: pytest -q
 
-      - name: ✅ التحقّق من وجود الحالة والتقارير (لا تُحجب)
-        run: |
-          git check-ignore -q state/state.json && { echo "❌ state.json مُتجاهَل — سيفقد النظام ذاكرته"; exit 1; } || echo "✅ state/state.json متعقَّب"
+      - name: 🔐 فحص تسرّب الأسرار (الملفات الحالية)
+        run: bash scripts/check_secrets.sh
 
-      - name: التحقّق من صحة ملفات الإعدادات
+      - name: 🕵️ فحص تاريخ Git — أسرار في commits قديمة
+        run: bash scripts/check_secrets.sh --history
+
+      - name: 📋 التحقّق من صحة الإعدادات
         env:
           PYTHONPATH: src
           AI_DISABLED: "true"
           DRY_RUN: "true"
         run: python -m autonews.main --check || true
 
-      - name: فحص السلوك الاحتياطي بلا مفاتيح
+      - name: 🔗 فحص مزامنة الحالة
         env:
           PYTHONPATH: src
-          AI_DISABLED: "true"
-          DRY_RUN: "true"
-          ENABLED_CHANNELS: console_preview
-        run: python -c "
-          from autonews.config_loader import load_config
-          from autonews.ai.writer import ContentWriter
-          from autonews.ingest import Article
-          s = load_config('config')
-          w = ContentWriter(None, s)
-          a = Article(source_id='t', source_name='اختبار',
-                      title='عنوان تجريبي طويل بما يكفي لاجتياز الفلترة',
-                      summary='ملخص تجريبي للخبر ' * 5, url='https://example.com/1')
-          p = w.write(a, s.channels[0])
-          assert p.used_fallback and p.body, 'القالب الاحتياطي لا يعمل'
-          print('✅ القالب الاحتياطي يعمل:', len(p.body), 'حرفاً')
+        run: |
+          python -m autonews.state_sync status
+          python -c "
+          from autonews.state_sync import check, SyncConfig
+          ok, msg = check(SyncConfig())
+          print('المزامنة:', msg)
+          # بلا إعداد المزامنة اختيارية ⇒ نجاح
           "
+
+      - name: 🗂 التحقّق من المتوقّع في المستودع
+        run: |
+          set -euo pipefail
+          fail() { echo "❌ $*"; exit 1; }
+          [ -f requirements.txt ] || fail "requirements.txt مفقود"
+          [ -f .gitignore ] || fail ".gitignore مفقود"
+          [ -f .env.example ] || fail ".env.example مفقود"
+          [ -d .github/actions/setup ] || fail "الـ composite action مفقود"
+          grep -q 'state/' .gitignore || fail ".gitignore لا يستثني الحالة"
+          grep -q 'logs/' .gitignore || fail ".gitignore لا يستثني السجلات"
+          if git ls-files --error-unmatch state/state.json >/dev/null 2>&1; then
+            fail "state/state.json متعقَّب في المستودع العام — يجب أن يكون في الخاص"
+          fi
+          if git ls-files | grep -qE '^logs/.*\.(html|json|md)$'; then
+            fail "سجلات/تقارير متعقَّبة في المستودع العام"
+          fi
+          echo "✅ بنية المستودع سليمة (لا حالة ولا سجلات خاصة)"

@@ -219,9 +219,18 @@ def test_save_state_script_exists_and_is_valid():
 
 
 def test_workflows_save_state_to_repo_not_cache():
+    """الحالة تُحفظ في المستودع الخاص (state_sync) أو محلياً — لا في Cache.
+
+    تحديث: بعد فصل المستودعين صار الحفظ عبر composite action `./.github/actions/state`
+    الذي يستدعي `python -m autonews.state_sync save`. الكاش ممنوع في الحالتين لأنه
+    يُحذف بعد ٧ أيام فيُنسي النظام ذاكرته وينشر مكرراً.
+    """
     from pathlib import Path
 
-    for wf in ("flash.yml", "autonews.yml"):
+    for wf in ("flash.yml", "autonews.yml", "control.yml"):
         text = Path(f".github/workflows/{wf}").read_text(encoding="utf-8")
-        assert "scripts/save_state.sh" in text, f"{wf} لا يحفظ الحالة في المستودع"
+        saves = ("scripts/save_state.sh" in text
+                 or "./.github/actions/state" in text)
+        assert saves, f"{wf} لا يحفظ الحالة"
+        assert "actions/cache" not in text, f"{wf} يستخدم Cache للحالة (خطأ)"
         assert "actions/cache/save" not in text, f"{wf} ما زال يستخدم كاشاً مؤقتاً"

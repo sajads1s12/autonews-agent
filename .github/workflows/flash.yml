@@ -1,61 +1,58 @@
-name: ⚡ Flash Lane — نشر عاجل سريع
+# =============================================================================
+#  ⚡ المسار السريع — فحص الأخبار العاجلة كل ٥ دقائق
+#
+#  لماذا ٥ دقائق؟ GitHub يرفض جدولة أقلّ من ذلك. التأخير الواقعي ٥–٢٠ دقيقة
+#  بحسب ازدحام GitHub. لمن يريد ثوانٍ: مشغّل مستمر (VPS/Docker) بنفس الأمر.
+#
+#  ملاحظة صريحة: **Cron في GitHub ليس دقيقاً** — قد يتأخّر أو يُلغى عند
+#  الحمل العالي. لا نبني عليه وعداً بتوقيت الثانية.
+#
+#  التكلفة: المستودع العام = دقائق مجانية بلا حدّ. الخاص = ~٥٠٠ دقيقة/شهر.
+# =============================================================================
+name: ⚡ المسار السريع — أخبار عاجلة
 
-# ---------------------------------------------------------------------------
-#  لماذا 5 دقائق وليس 1؟
-#  GitHub يرفض الجدولة الأقل من 5 دقائق، ناهيك عن أنه يؤخّر التشغيل عند الازدحام.
-#  أي أن هذه القناة تعطي تأخيراً واقعياً بين 5 و 20 دقيقة.
-#
-#  للحصول على ثوانٍ (منافسة حقيقية للقنوات المباشرة):
-#    مشغّل مستمر على VPS صغير (2$ شهرياً) أو Docker:
-#       python -m autonews.flash_main --interval 30
-#    أو Railway/Render/Fly.io (خطة مجانية/رخيصة) بنفس الأمر.
-#
-#  ملاحظة: هذا السير عمل **منفصل** عن الدورة الكاملة، فلا يزعج تقاريرها ولا سقوفها.
-# ---------------------------------------------------------------------------
 on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "تجريبي بلا نشر"
+        type: boolean
+        default: false
 
+# 🔒 منع تشغيل نسختين متعارضتين من المهمة نفسها
 concurrency:
   group: autonews-flash
-  cancel-in-progress: false
+  cancel-in-progress: false        # لا نُلغي تشغيلاً جارياً (قد يكون في منتصف النشر)
 
 permissions:
-  contents: write
+  contents: read                   # الحالة في المستودع الخاص — لا حاجة للكتابة هنا
 
 jobs:
   flash:
-    name: Urgent news check
+    name: فحص عاجل
     runs-on: ubuntu-latest
     timeout-minutes: 8
 
     env:
       PYTHONPATH: src
       TZ_OFFSET: "3"
+      # ---- مزامنة الحالة (اختيارية — النظام يعمل بلاها) ----
+      STATE_REPO: ${{ secrets.STATE_REPO }}
+      STATE_REPO_TOKEN: ${{ secrets.STATE_REPO_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: ⬇️ جلب الكود
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: 🧰 تجهيز البيئة
+        uses: ./.github/actions/setup
+
+      - name: 🔗 استعادة الحالة
+        uses: ./.github/actions/state
         with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: 📦 تثبيت الاعتماديات
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: ♻️ تجهيز مجلد الحالة
-        # الحالة محفوظة في المستودع نفسه (state/state.json) — تأتي مع checkout
-        run: |
-          mkdir -p state logs
-          if [ -f state/state.json ]; then
-            echo "✅ حالة سابقة موجودة ($(wc -c < state/state.json) بايت)"
-          else
-            echo "ℹ️ بدء سجل جديد (أول تشغيل)"
-          fi
+          action: restore
 
       - name: ⚡ فحص عاجل ونشر
         env:
@@ -65,28 +62,23 @@ jobs:
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
           GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
           GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
+          GEMINI_MODELS: ${{ secrets.GEMINI_MODELS }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_TECH_CHAT_ID: ${{ secrets.TELEGRAM_TECH_CHAT_ID }}
           TELEGRAM_SCOPED_CHAT_ID: ${{ secrets.TELEGRAM_SCOPED_CHAT_ID }}
           FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
           FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
-          FACEBOOK_USER_TOKEN: ${{ secrets.FACEBOOK_USER_TOKEN }}
-          X_API_KEY: ${{ secrets.X_API_KEY }}
-          X_API_SECRET: ${{ secrets.X_API_SECRET }}
-          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
-          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
-          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
           ALERT_BOT_TOKEN: ${{ secrets.ALERT_BOT_TOKEN }}
           ALERT_CHAT_ID: ${{ secrets.ALERT_CHAT_ID }}
-          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || 'false' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && 'true' || '' }}
+        # لا نُفشل التشغيل عند فشل الشبكة: البوت يتعامل مع الفشل داخلياً
+        continue-on-error: true
         run: python -m autonews.flash_main
 
-      - name: 📊 لوحة الأداء
+      - name: 💾 حفظ الحالة
         if: always()
-        continue-on-error: true
-        run: python -m autonews.dashboard_main
-
-      - name: 💾 حفظ الحالة والتقارير في المستودع
-        if: always()
-        run: bash scripts/save_state.sh "[skip ci] ⚡ حالة المسار السريع"
+        uses: ./.github/actions/state
+        with:
+          action: save
+          message: "[state] ⚡ المسار السريع"

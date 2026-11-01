@@ -424,6 +424,28 @@ CHANNEL_TEMPLATE = """
 """
 
 
+def suggest_channel_id(name: str, *, existing: set[str] | None = None) -> str:
+    """يولّد معرّفاً إنجليزياً من اسم/وصف عربي — المستخدم لا يكتب معرّفات.
+
+    يعتمد على القطاع المكتشف: `tg_health` ثم `tg_health_2`... وإن لم يُعرف
+    القطاع فـ `tg_new` ثم `tg_new_2`...
+    """
+    from .sectors import detect
+
+    profile = detect(name)
+    base = f"tg_{profile.key}" if profile is not None else "tg_new"
+    base = re.sub(r"[^a-z0-9_]", "_", base.lower())[:20]
+    if not re.match(r"^[a-z]", base):
+        base = "tg_new"
+    taken = existing or set()
+    if base not in taken:
+        return base
+    i = 2
+    while f"{base}_{i}" in taken:
+        i += 1
+    return f"{base}_{i}"
+
+
 def add_channel(channel_id: str, *, name: str = "", tags: list[str] | None = None,
                 sector: str = "", config_dir: str = "config") -> tuple[bool, str]:
     """إضافة قناة تيليجرام كاملة (بصمة + سرّ + وسوم) معطّلة الأمان لا مطلوب."""
@@ -457,8 +479,8 @@ def add_channel(channel_id: str, *, name: str = "", tags: list[str] | None = Non
     _write_atomic(path, new_text)
 
     msg = (f"✅ <b>أُضيفت القناة</b> <code>{cid}</code>\n\n"
-           f"١) اربطها الآن: اضغط <b>{name or cid}</b> في لوحة الإعداد\n"
-           f"٢) السرّ (اختياري): <code>{secret}</code> في GitHub Secrets\n\n"
+           f"١) اربطها الآن: اضغط «🔗 اربط» ثم أرسل <code>@اسم_القناة</code>\n"
+           f"٢) بلا سرّ ولا معرّف يدوي: الربط يُحفظ في المستودع الخاص\n\n"
            f"💡 المعرّف يُحفظ في <code>state/channels_setup.json</code> — لا حاجة للسرّ.")
     log.info("➕ قناة جديدة %s (وسوم=%s)", cid, tags)
     return True, msg
@@ -470,3 +492,74 @@ __all__ = [
     "add_channel", "CHANNEL_TEMPLATE", "SOURCE_TEMPLATE",
     "update_channel_sources",
 ]
+
+
+def update_channel_setting(channel_id: str, key: str, value: str | int | bool, *,
+                           config_dir: str = "config") -> "TagEdit":
+    """تعديل مفتاح عددي/منطقي في قناة (مثل `max_posts_per_run`).
+
+    مفيد من البوت: «حدّد عدد المنشورات» بلا تحرير ملفات.
+    يتحقّق من النوع قبل الكتابة حتى لا يُفسد الإعداد.
+    """
+    allowed_num = {"max_posts_per_run", "flash_priority", "add_hashtags", "max_chars"}
+    allowed_bool = {"enabled", "with_image", "flash_eligible", "review_required",
+                    "breaking_boost", "include_source_link", "include_signature",
+                    "add_emoji"}
+    if key not in allowed_num | allowed_bool:
+        return TagEdit(False, f"❌ مفتاح غير مسموح: {key}")
+
+    if key in allowed_num:
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            return TagEdit(False, "❌ القيمة يجب أن تكون رقماً")
+        if not 0 <= value <= 100:
+            return TagEdit(False, "❌ القيمة خارج المدى (0–100)")
+        rendered = str(value)
+    else:
+        rendered = "true" if value in (True, "true", "1", 1) else "false"
+
+    path = Path(config_dir) / "channels.yml"
+    if not path.exists():
+        return TagEdit(False, f"لم أجد {path}")
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    bounds = _channel_bounds(lines, channel_id)
+    if bounds is None:
+        return TagEdit(False, f"القناة «{channel_id}» غير موجودة")
+    start, end = bounds
+
+    line_at = next((i for i in range(start, end)
+                    if re.match(rf"\s*{re.escape(key)}:", lines[i])), None)
+    if line_at is None:
+        insert_at = next((i for i in range(start, end)
+                          if re.match(r"\s*(credentials|extra|branding):", lines[i])), end)
+        lines.insert(insert_at, f"    {key}: {rendered}\n")
+    else:
+        indent = lines[line_at][:len(lines[line_at]) - len(lines[line_at].lstrip())]
+        comment = ""
+        if "#" in lines[line_at]:
+            comment = "   #" + lines[line_at].split("#", 1)[1].rstrip("\n")
+        lines[line_at] = f"{indent}{key}: {rendered}{comment}\n"
+
+    new_text = "".join(lines)
+    problem = _verify_yaml(new_text, key="channels")
+    if problem:
+        return TagEdit(False, problem)
+    path.write_text(new_text, encoding="utf-8")
+    log.info("⚙️ %s.%s = %s", channel_id, key, rendered)
+    return TagEdit(True, f"✅ {channel_id}: {key} = {rendered}")
+
+
+def set_channel_enabled(channel_id: str, enabled: bool, *,
+                        config_dir: str = "config") -> "TagEdit":
+    """تفعيل/تعطيل قناة بنقرة — أوضح رسالة من تعديل خام."""
+    res = update_channel_setting(channel_id, "enabled", enabled, config_dir=config_dir)
+    if res.ok:
+        return TagEdit(True, "✅ القناة مفعّلة — ستنشر من التشغيل القادم."
+                       if enabled else
+                       "⏸ القناة معطّلة — لن تُنشر ولن تُحسب في التوزيع.", [])
+    return res
+
+
+__all__ += ["update_channel_setting", "set_channel_enabled"]

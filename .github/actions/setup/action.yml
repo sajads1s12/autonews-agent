@@ -1,0 +1,59 @@
+# =============================================================================
+#  🔁 القالب المشترك لكل سير عمل — يمنع تكرار ٨٠ سطراً في كل ملف
+#
+#  مهمّ: GitHub Actions لا يدعم `uses` لملف workflow، لذلك نستخدم
+#  Composite Action (المجلد .github/actions/...). هذا يوفّر:
+#    • تثبيتاً واحداً للاعتماديات مع Cache مشترك
+#    • مزامنة حالة موحّدة (restore → run → save)
+#    • سلوكاً واحداً عند الفشل في كل المسارات
+#
+#  الاستخدام داخل أي workflow:
+#    - uses: ./.github/actions/setup
+#    - uses: ./.github/actions/state
+#      with: { action: restore }
+#    - run: python -m autonews.main --once
+#    - uses: ./.github/actions/state
+#      if: always()
+#      with: { action: save }
+# =============================================================================
+
+name: "🧰 تجهيز البيئة"
+description: "Python + اعتماديات مع Cache + أدوات التشخيص (لا مفاتيح هنا)"
+
+inputs:
+  python-version:
+    description: "إصدار بايثون"
+    required: false
+    default: "3.12"
+  extras:
+    description: "حزم إضافية للاختبارات (مثال: pytest)"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: 🐍 تجهيز بايثون
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        # مفتاح الكاش يعتمد على requirements.txt — لا يُعاد التثبيت إن لم تتغيّر
+        cache: pip
+        cache-dependency-path: requirements.txt
+
+    - name: 📦 تثبيت الاعتماديات (سريع عند وجود Cache)
+      shell: bash
+      run: |
+        set -euo pipefail
+        # --upgrade pip بطيء وغير ضروري في كل تشغيل: نتخطّاه إن كان محدّثاً
+        python -m pip install --upgrade pip --quiet --disable-pip-version-check || true
+        if [ -n "${{ inputs.extras }}" ]; then
+          pip install --quiet --disable-pip-version-check -r requirements.txt ${{ inputs.extras }}
+        else
+          pip install --quiet --disable-pip-version-check -r requirements.txt
+        fi
+        echo "✅ الاعتماديات جاهزة"
+
+    - name: 🗂 تجهيز المجلدات
+      shell: bash
+      run: mkdir -p state logs

@@ -156,7 +156,70 @@ def main_keyboard(store: SetupStore, known: list[str]) -> list[list[dict]]:
         {"text": "🎛 لوحة التحكّم", "callback_data": "ctl"},
         {"text": "📊 الإدارة", "callback_data": "manage"},
     ])
-    rows.append([{"text": "🧪 اختبار النشر", "callback_data": "test_all"}])
+    rows.append([{"text": "📋 القنوات وإدارتها", "callback_data": "chs"},
+                 {"text": "🧪 اختبار النشر", "callback_data": "test_all"}])
+    return rows
+
+
+# --------------------------------------------------------------------------- #
+#  📋 شاشة القنوات — إدارة كاملة بلا ملفات
+# --------------------------------------------------------------------------- #
+def channels_keyboard(channels: list[dict], control) -> list[list[dict]]:
+    """زرّ لكل قناة: ✅ مفعّلة / ⏸ معطّلة + قطاعها."""
+    from .sectors import sector_of
+
+    rows: list[list[dict]] = []
+    row: list[dict] = []
+    for ch in channels:
+        cid = ch["id"]
+        profile = sector_of(cid)
+        icon = profile.icon if profile else "📌"
+        state = "✅" if ch.get("enabled", True) else "⏸"
+        c = control.get(cid)
+        if getattr(c, "paused", False):
+            state = "⏸"
+        row.append({"text": f"{state} {icon} {ch.get('name') or cid}"[:38],
+                    "callback_data": f"chv:{cid}"})
+        if len(row) == 2:
+            rows.append(row); row = []
+    if row:
+        rows.append(row)
+    rows.append([{"text": "➕ قناة جديدة", "callback_data": "newc"},
+                 {"text": "🧠 ربط بالاسم", "callback_data": "autolink"}])
+    rows.append([{"text": "↩️ الرئيسية", "callback_data": "panel"}])
+    return rows
+
+
+def channel_detail_keyboard(cid: str, *, enabled: bool) -> list[list[dict]]:
+    """أزرار قناة واحدة: تفعيل · اختصاص · عدد المنشورات · آخر المنشورات."""
+    toggle = ({"text": "⏸ تعطيل النشر", "callback_data": f"choff:{cid}"}
+              if enabled else
+              {"text": "✅ تفعيل النشر", "callback_data": f"chon:{cid}"})
+    return [
+        [toggle, {"text": "🧠 تغيير الاختصاص", "callback_data": f"sec:{cid}"}],
+        [{"text": "🔢 عدد المنشورات", "callback_data": f"num:{cid}"},
+         {"text": "📜 آخر المنشورات", "callback_data": f"last:{cid}"}],
+        [{"text": "🏷 الوسوم", "callback_data": f"tags:{cid}"},
+         {"text": "🖋 البصمة", "callback_data": f"brd:{cid}"}],
+        [{"text": "📈 حالة النشر", "callback_data": f"ctl:{cid}"},
+         {"text": "↩️ القنوات", "callback_data": "chs"}],
+    ]
+
+
+def sectors_keyboard(cid: str) -> list[list[dict]]:
+    """كل الاختصاصات كأزرار — نقرة واحدة تكفي."""
+    from .sectors import catalog
+
+    rows: list[list[dict]] = []
+    row: list[dict] = []
+    for item in catalog():
+        row.append({"text": f"{item['icon']} {item['label']}"[:32],
+                    "callback_data": f"secs:{cid}:{item['key']}"})
+        if len(row) == 2:
+            rows.append(row); row = []
+    if row:
+        rows.append(row)
+    rows.append([{"text": "↩️ رجوع", "callback_data": f"chv:{cid}"}])
     return rows
 
 
@@ -200,7 +263,8 @@ def manage_keyboard(known: list[str]) -> list[list[dict]]:
     """📊 مركز الإدارة: إحصاءات · وسوم · قناة جديدة · مصدر جديد."""
     return [
         [{"text": "📊 الإحصاءات", "callback_data": "st"},
-         {"text": "🏷 وسوم القناة", "callback_data": "tags"}],
+         {"text": "🩺 الأخطاء", "callback_data": "errors"}],
+        [{"text": "🏷 وسوم القناة", "callback_data": "tags"}],
         [{"text": "🧠 اربط بالاسم", "callback_data": "autolink"}],
         [{"text": "➕ قناة جديدة", "callback_data": "newc"},
          {"text": "📡 مصدر جديد", "callback_data": "news"}],
@@ -302,6 +366,14 @@ def status_text(store: SetupStore, known: list[str]) -> str:
 # --------------------------------------------------------------------------- #
 _ID_RE = re.compile(r"^-?\d{5,}$")
 _TME_RE = re.compile(r"(?:https?://)?t\.me/([A-Za-z0-9_+%\-]+)")
+
+
+def _ago(stamp: str) -> str:
+    """«قبل ٣ ساعات» من طابع ISO — للعرض في البوت."""
+    from .utils import human_age, parse_dt
+
+    dt = parse_dt(stamp) if stamp else None
+    return human_age(dt) if dt else "—"
 
 
 def parse_target(text: str) -> tuple[str, str]:
@@ -443,6 +515,8 @@ class SetupBot:
                 self._create_source(chat_id, text)
             elif kind == "fb_page":
                 self._save_page_id(chat_id, text)
+            elif kind == "max_posts":
+                self._set_max_posts(chat_id, pending_id, text)
             elif kind == "autolink":
                 self._autolink(chat_id, text)
             else:
@@ -555,6 +629,71 @@ class SetupBot:
             self._on_tags(chat_id, data)
             return
 
+        if data == "chs":
+            self._show_channels(chat_id)
+            return
+
+        if data.startswith("chv:"):
+            self._show_channel(chat_id, data.split(":", 1)[1])
+            return
+
+        if data.startswith(("chon:", "choff:")):
+            cid = data.split(":", 1)[1]
+            enable = data.startswith("chon:")
+            from .editor import set_channel_enabled
+
+            res = set_channel_enabled(cid, enable, config_dir=self.config_dir)
+            self.send(chat_id, res.message,
+                      keyboard=[[{"text": "↩️ القناة", "callback_data": f"chv:{cid}"}]])
+            return
+
+        if data.startswith("secs:"):
+            _, cid, key = data.split(":", 2)
+            from .sectors import ensure_sources, set_sector
+
+            ok, msg = set_sector(cid, key, config_dir=self.config_dir)
+            if ok:
+                from .sectors import SECTORS
+
+                extra = ensure_sources(SECTORS[key], config_dir=self.config_dir)
+                if extra:
+                    msg += "\n" + extra
+            self.send(chat_id, msg if ok else "⚠️ " + msg,
+                      keyboard=[[{"text": "↩️ القناة", "callback_data": f"chv:{cid}"}]])
+            return
+
+        if data.startswith("sec:"):
+            cid = data.split(":", 1)[1]
+            from .sectors import sector_of
+
+            current = sector_of(cid, config_dir=self.config_dir)
+            head = (f"🧠 <b>اختصاص القناة</b>\nالحالي: "
+                    f"{current.icon} {current.label}\n\n" if current else
+                    "🧠 <b>اختصاص القناة</b>\nالحالي: بلا اختصاص\n\n")
+            self.send(chat_id, head + "اختر الاختصاص الجديد:",
+                      keyboard=sectors_keyboard(cid))
+            return
+
+        if data.startswith("num:"):
+            cid = data.split(":", 1)[1]
+            self.store.start_awaiting(cid, telegram_user=0, kind="max_posts")
+            self.send(chat_id,
+                      "🔢 <b>عدد المنشورات لكل تشغيل</b>\n\n"
+                      "أرسل رقماً من ٠ إلى ٢٠:\n"
+                      "• <code>0</code> = بلا حدّ\n"
+                      "• <code>3</code> = ثلاث منشورات كحدّ أقصى\n\n"
+                      "⚠️ القيمة العالية تستهلك توكنات أكثر وتُغرق القناة.",
+                      keyboard=[[{"text": "↩️ رجوع", "callback_data": f"chv:{cid}"}]])
+            return
+
+        if data.startswith("last:"):
+            self._show_last_posts(chat_id, data.split(":", 1)[1])
+            return
+
+        if data == "errors":
+            self._show_errors(chat_id)
+            return
+
         if data == "autolink":
             self.store.start_awaiting("", telegram_user=0, kind="autolink")
             self.send(chat_id,
@@ -571,11 +710,11 @@ class SetupBot:
             self.store.start_awaiting("", telegram_user=0, kind="new_channel")
             self.send(chat_id,
                       "➕ <b>قناة جديدة</b>\n\n"
-                      "أرسل بالصيغة: <code>معرّف | الاسم | وسم1, وسم2</code>\n\n"
-                      "مثال:\n<code>tg_crypto | قناة العملات | عملات, بيتكوين</code>\n\n"
-                      "• المعرّف: أحرف إنجليزية صغيرة و_ فقط\n"
-                      "• الاسم: كما يظهر في الأزرار\n"
-                      "• الوسوم: اختيارية (بلا وسوم = كل شيء)",
+                      "أرسل <b>اسم القناة ووصفها</b> في رسالة واحدة، وأنا أستنتج "
+                      "الاختصاص والمصادر تلقائياً.\n\n"
+                      "مثال:\n<code>قناة الصحة والطب — كل ما يخص الطب والصحة والأدوية</code>\n\n"
+                      "• لا معرّف ولا سرّ لكل قناة — الربط يكفي\n"
+                      "• الصيغة القديمة ما زالت تعمل: <code>tg_crypto | قناة العملات | عملات</code>",
                       keyboard=[[{"text": "↩️ رجوع", "callback_data": "manage"}]])
             return
 
@@ -1111,12 +1250,36 @@ class SetupBot:
         log.info("🔗 ربط سريع: %s ← %s (%s)", cid, info.id, info.title)
 
     def _create_channel(self, chat_id: str | int, raw: str) -> None:
-        from .editor import add_channel
+        """➕ إضافة قناة بالاسم/الوصف فقط — الاختصاص والمعرّف يُستنتجان تلقائياً."""
+        from .editor import add_channel, suggest_channel_id
+        from .sectors import apply_to_channel
+        from .channels_main import load_channels
+        from .sectors import detect, ensure_sources, sector_of
 
-        parts = [p.strip() for p in raw.replace("،", ",").split("|")]
-        cid = parts[0] if parts else ""
-        name = parts[1] if len(parts) > 1 else cid
-        tags = [t.strip() for t in (parts[2] if len(parts) > 2 else "").split(",") if t.strip()]
+        task = self.store.pending_task() or {}
+        sector_key = str(task.get("sector", "") or "")
+
+        # قبول الصيغة القديمة (معرّف | اسم | وسوم) ما دامت تعمل — لا حذف لميزة
+        if "|" in raw:
+            parts = [p.strip() for p in raw.replace("،", ",").split("|")]
+            cid = parts[0] if parts else ""
+            name = parts[1] if len(parts) > 1 else cid
+            tags = [t.strip() for t in (parts[2] if len(parts) > 2 else "").split(",") if t.strip()]
+        else:
+            # 🎯 المسار الذكي: الاسم (+ الوصف) فقط
+            name = raw.strip()
+            profile = detect(name)
+            tags = list(profile.tags) if profile else []
+            existing = {str(c.get("id")) for c in load_channels(self.config_dir)}
+            cid = suggest_channel_id(name, existing=existing)
+            if sector_key:
+                from .sectors import SECTORS
+                chosen = SECTORS.get(sector_key)
+                if chosen is not None:                       # اختيار صريح يتقدّم على الاستنتاج
+                    profile = chosen
+                    tags = list(chosen.tags)
+                    cid = suggest_channel_id(name, existing=existing)
+
         ok, msg = add_channel(cid, name=name, tags=tags, config_dir=self.config_dir)
         self.store.clear_pending()
         if not ok:
@@ -1126,9 +1289,33 @@ class SetupBot:
             return
         if cid not in self.known:
             self.known.append(cid)
-        self.send(chat_id, msg,
-                  keyboard=[[{"text": f"🔗 اربط {name}", "callback_data": f"pick:{cid}"},
-                             {"text": "↩️ الإدارة", "callback_data": "manage"}]])
+
+        # ضبط المصادر حسب الاختصاص (لا قناة صامتة) + ذكر ما جرى
+        extra = ""
+        profile = detect(name)
+        if profile is not None:
+            apply_to_channel(cid, name, config_dir=self.config_dir, override=True)
+            extra = (f"\n🎯 الاختصاص: <b>{profile.icon} {profile.label}</b>"
+                     f"\n🏷 الوسوم: {', '.join(profile.tags) or '—'}")
+            note = ensure_sources(profile, config_dir=self.config_dir)
+            if note:
+                extra += f"\n{note}"
+            extra += "\n\n🔁 تقدر تغيّر الاختصاص في أي وقت من «✏️ الاختصاص»."
+            dup = [c.get("id") for c in load_channels(self.config_dir)
+                   if c.get("platform") == "telegram" and c.get("id") != cid
+                   and sector_of(str(c.get("id")), config_dir=self.config_dir) is not None
+                   and sector_of(str(c.get("id")), config_dir=self.config_dir).key == profile.key]
+            if dup:
+                extra += (f"\n\n⚠️ تنبيه: عندك قناة بنفس الاختصاص (<code>{', '.join(dup)}</code>). "
+                          f"القاعدتان ستنشران متشابهة — إمّا تعطّل واحدة أو تغيّر اختصاص هذه.")
+        else:
+            extra = ("\n🤷 لم أتعرّف على الاختصاص من النص — القناة تستقبل كل الأخبار "
+                     "(آمن). اضبط الاختصاص يدوياً من «✏️ الاختصاص».")
+
+        self.send(chat_id, msg + extra,
+                  keyboard=[[{"text": "🔗 اربط بالاسم", "callback_data": f"pick:{cid}"},
+                             {"text": "🧠 الاختصاص", "callback_data": f"sec:{cid}"}],
+                            [{"text": "↩️ القنوات", "callback_data": "chs"}]])
 
     # --------------------------------------------- 📡 مصدر جديد
     def _create_source(self, chat_id: str | int, raw: str) -> None:
@@ -1180,6 +1367,179 @@ class SetupBot:
             lines.append("⬜ لا قنوات جاهزة بعد.")
         self.send(chat_id, "\n".join(lines),
                   keyboard=[[{"text": "↩️ اللوحة", "callback_data": "panel"}]])
+
+
+    # ------------------------------------------------ 📋 إدارة القنوات
+    def _channels(self) -> list[dict]:
+        """قنوات تيليجرام من channels.yml (مصدر الحقيقة، لا قائمة ثابتة)."""
+        try:
+            from .channels_main import load_channels
+
+            return [c for c in load_channels(self.config_dir)
+                    if c.get("platform") == "telegram"]
+        except Exception as exc:                                # noqa: BLE001
+            log.warning("تعذّر قراءة القنوات: %s", exc)
+            return []
+
+    def _show_channels(self, chat_id: str | int) -> None:
+        """📋 كل القنوات بحالتها واختصاصها."""
+        from .control import ControlStore
+
+        channels = self._channels()
+        if not channels:
+            self.send(chat_id, "📭 لا قنوات تيليجرام بعد.\n\nاضغط «➕ قناة جديدة».",
+                      keyboard=[[{"text": "➕ قناة جديدة", "callback_data": "newc"},
+                                 {"text": "↩️ الرئيسية", "callback_data": "panel"}]])
+            return
+
+        control = ControlStore.load("state/control.json")
+        active = len([c for c in channels if c.get("enabled", True)])
+        lines = [f"📋 <b>القنوات</b> ({active}/{len(channels)} مفعّلة)", ""]
+        from .sectors import sector_of
+
+        for ch in channels:
+            cid = ch["id"]
+            profile = sector_of(cid, config_dir=self.config_dir)
+            state = "✅" if ch.get("enabled", True) else "⏸"
+            cap = ch.get("max_posts_per_run", 3)
+            icon = profile.icon if profile else "📌"
+            label = profile.label if profile else "بلا اختصاص"
+            lines.append(f"{state} {icon} <b>{ch.get('name') or cid}</b> · {label} · {cap}/تشغيل")
+        lines += ["", "اضغط أي قناة لإدارتها."]
+        self.send(chat_id, "\n".join(lines), keyboard=channels_keyboard(channels, control))
+
+    def _show_channel(self, chat_id: str | int, cid: str) -> None:
+        """تفاصيل قناة واحدة: الاختصاص · الحالة · آخر منشور · الربط."""
+        from .control import ControlStore
+        from .sectors import sector_of
+
+        channel = next((c for c in self._channels() if c["id"] == cid), None)
+        if channel is None:
+            self.send(chat_id, f"❌ القناة «{cid}» غير موجودة.",
+                      keyboard=[[{"text": "↩️ القنوات", "callback_data": "chs"}]])
+            return
+
+        binding = self.store.get(cid)
+        control = ControlStore.load("state/control.json")
+        c = control.get(cid)
+        profile = sector_of(cid, config_dir=self.config_dir)
+        enabled = bool(channel.get("enabled", True))
+
+        lines = [f"<b>{html.escape(str(channel.get('name') or cid))}</b>",
+                 f"<code>{cid}</code>", ""]
+        lines.append(f"الحالة: {'✅ مفعّلة' if enabled else '⏸ معطّلة'}")
+        if getattr(c, "paused", False):
+            lines.append("⏸ <b>موقوفة مؤقتاً</b> من لوحة التحكّم")
+        lines.append(f"الاختصاص: {profile.icon + ' ' + profile.label if profile else '📌 بلا اختصاص'}")
+        lines.append(f"عدد المنشورات/تشغيل: <b>{channel.get('max_posts_per_run', 3)}</b>")
+        if binding and binding.verified:
+            lines.append(f"الربط: ✅ {html.escape(binding.title or binding.chat_id)}")
+        else:
+            lines.append("الربط: ⬜ لم تُربط — اضغط «ربط بالاسم»")
+        lines.append(f"الوسوم: {', '.join(channel.get('tags') or []) or '—'}")
+        n_src = len(channel.get("sources") or [])
+        lines.append(f"المصادر: {'كل المصادر' if '*' in (channel.get('sources') or []) else str(n_src)}")
+        if getattr(c, "posts_total", 0):
+            lines.append(f"إجمالي المنشورات: <b>{c.posts_total}</b> · آخرها: {_ago(c.last_post_at)}")
+
+        self.send(chat_id, "\n".join(lines),
+                  keyboard=channel_detail_keyboard(cid, enabled=enabled))
+
+    def _show_last_posts(self, chat_id: str | int, cid: str, limit: int = 5) -> None:
+        """📜 آخر المنشورات الفعلية لهذه القناة من state.json."""
+        posts: list[dict] = []
+        try:
+            from .state import StateStore
+
+            state = StateStore("state/state.json").load()
+            posts = [p for p in state.posted if p.get("channel") == cid][-limit:]
+        except Exception as exc:                                # noqa: BLE001
+            log.warning("تعذّر قراءة المنشورات: %s", exc)
+
+        if not posts:
+            self.send(chat_id, f"📭 لا منشورات مسجّلة لـ <code>{cid}</code> بعد.",
+                      keyboard=[[{"text": "↩️ رجوع", "callback_data": f"chv:{cid}"}]])
+            return
+
+        lines = [f"📜 <b>آخر {len(posts)} منشورات</b> · <code>{cid}</code>", ""]
+        for post in reversed(posts):
+            when = _ago(post.get("at", ""))
+            title = str(post.get("title") or post.get("url") or "—")[:70]
+            mark = "🧪" if post.get("ref") == "dry-run" else "✅"
+            lines.append(f"{mark} {html.escape(title)}\n     🕐 {when}")
+        self.send(chat_id, "\n".join(lines),
+                  keyboard=[[{"text": "↩️ رجوع", "callback_data": f"chv:{cid}"}]])
+
+    def _show_errors(self, chat_id: str | int) -> None:
+        """🩺 الأخطاء والإحصاءات: صحة المصادر + طابور الإعادة + آخر تشغيل."""
+        lines = ["🩺 <b>الأخطاء والإحصاءات</b>", ""]
+        try:
+            from .state import StateStore
+
+            state = StateStore("state/state.json").load()
+            lines.append(f"التشغيلات: <b>{state.runs}</b> · "
+                         f"منشورات: <b>{len(state.posted)}</b> · "
+                         f"مقالات معالَجة: <b>{len(state.articles)}</b>")
+
+            if state.retry_queue:
+                lines += ["", f"🔁 <b>طابور الإعادة</b> ({len(state.retry_queue)}):"]
+                for item in state.retry_queue[:5]:
+                    title = str(item.get("title") or item.get("article_fp") or "—")[:50]
+                    tries = item.get("attempts", 0)
+                    lines.append(f"   • {html.escape(title)} (محاولة {tries})")
+
+            bad = [(sid, h) for sid, h in (state.source_health or {}).items()
+                   if int(h.get("fails", 0)) >= 2]
+            if bad:
+                lines += ["", f"⚠️ <b>مصادر متعثّرة</b> ({len(bad)}):"]
+                for sid, health in sorted(bad, key=lambda x: -int(x[1].get("fails", 0)))[:5]:
+                    lines.append(f"   • <code>{sid}</code> — {health.get('fails')} فشل")
+            else:
+                lines.append("✅ لا مصادر متعثّرة")
+
+            pending = getattr(state, "pending_reviews", {}) or {}
+            if pending:
+                lines += ["", f"👁 بانتظار مراجعتك: <b>{len(pending)}</b>"]
+        except Exception as exc:                                # noqa: BLE001
+            lines.append(f"❌ تعذّر قراءة الحالة: {html.escape(str(exc)[:80])}")
+
+        sources = self._read_sources()
+        active_src = len([x for x in sources if getattr(x, "enabled", True)])
+        lines.append(f"📡 المصادر: {len(sources)} ({active_src} مفعّل)")
+        lines.append(f"📋 القنوات: {len(self._channels())}")
+        self.send(chat_id, "\n".join(lines),
+                  keyboard=[[{"text": "📊 الإحصاءات", "callback_data": "st"},
+                             {"text": "↩️ الإدارة", "callback_data": "manage"}]])
+
+    def _set_max_posts(self, chat_id: str | int, cid: str, raw: str) -> None:
+        """تعديل عدد المنشورات لكل تشغيل من البوت (رقم فقط)."""
+        from .editor import update_channel_setting
+
+        text = (raw or "").strip().translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+        self.store.clear_pending()
+        if not text.lstrip("-").isdigit():
+            self.send(chat_id, "❌ أرسل رقماً فقط (مثل <code>3</code>).",
+                      keyboard=[[{"text": "🔁 حاول", "callback_data": f"num:{cid}"}]])
+            return
+        value = int(text)
+        res = update_channel_setting(cid, "max_posts_per_run", value,
+                                     config_dir=self.config_dir)
+        if not res.ok:
+            self.send(chat_id, res.message.replace("<", "&lt;"),
+                      keyboard=[[{"text": "🔁 حاول", "callback_data": f"num:{cid}"}]])
+            return
+        note = "بلا حدّ أقصى" if value == 0 else f"{value} منشوراً كحدّ أقصى"
+        self.send(chat_id, f"✅ <b>{channel_title(cid)}</b>: {note}",
+                  keyboard=[[{"text": "↩️ القناة", "callback_data": f"chv:{cid}"}]])
+
+    def _read_sources(self) -> list[dict]:
+        try:
+            from .channels_main import load_channels  # noqa: F401
+            from .config_loader import load_config
+
+            return list(load_config(self.config_dir).sources)
+        except Exception:                                       # noqa: BLE001
+            return []
 
     # ------------------------------------------------------------- الحلقة
     def _load_offset(self) -> int:

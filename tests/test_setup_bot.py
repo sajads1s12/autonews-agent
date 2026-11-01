@@ -223,3 +223,95 @@ def test_stored_id_is_used_by_config(tmp_path, monkeypatch):
     settings = load_config(str(cfgdir))
     anime = next(c for c in settings.channels if c.id == "tg_anime")
     assert anime.env("chat_id") == "-1009999999999"
+
+
+# --------------------------------------------------------------------------- #
+#  ق٧: إدارة القنوات من البوت بلا معرّفات ولا أسرار
+# --------------------------------------------------------------------------- #
+def _bot_with_config(tmp_path, monkeypatch):
+    import shutil
+    from unittest import mock
+
+    import autonews.setup_bot as sb
+
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    for name in ("channels.yml", "settings.yml", "occasions.yml"):
+        shutil.copy(f"config/{name}", cfg / name)
+    monkeypatch.setattr(sb, "send_message", lambda *a, **k: True)
+    monkeypatch.setattr(sb, "bot_info", lambda t: {})
+    monkeypatch.setattr(sb.SetupStore, "save", lambda self: None)
+    bot = sb.SetupBot(sb.BotConfig(token="T"), known_channels=[])
+    bot.config_dir = str(cfg)
+    bot._allowed = lambda *a, **k: True
+    sent: list[str] = []
+    monkeypatch.setattr(sb.SetupBot, "send",
+                        lambda self, c, t, **k: sent.append(t) or True)
+    with mock.patch.object(sb, "send_message", lambda *a, **k: True):
+        pass
+    return bot, cfg, sent
+
+
+def test_add_channel_by_name_only_auto_classifies(tmp_path, monkeypatch):
+    """🎯 المتطلب ٢: إضافة قناة بالاسم/الوصف فقط → الاختصاص والمصادر تلقائياً."""
+    from autonews.config_loader import load_config
+    from autonews.sectors import sector_of
+
+    bot, cfg, sent = _bot_with_config(tmp_path, monkeypatch)
+    bot.store.start_awaiting("", telegram_user=0, kind="new_channel")
+    bot._create_channel(111, "قناة الصحة والطب — كل ما يخص الطب والصحة والأدوية")
+
+    ids = [c.id for c in load_config(str(cfg)).channels]
+    cid = next(i for i in ids if i.startswith("tg_health"))
+    assert sector_of(cid, config_dir=str(cfg)).key == "health"
+    ch = next(c for c in load_config(str(cfg)).channels if c.id == cid)
+    assert ch.sources != ["*"], "قناة جديدة بلا مصادر = صمت"
+    assert "🎯 الاختصاص" in sent[-1]
+
+
+def test_add_channel_old_format_still_works(tmp_path, monkeypatch):
+    """لا حذف لميزة: الصيغة القديمة (معرّف | اسم | وسوم) ما زالت مقبولة."""
+    from autonews.config_loader import load_config
+
+    bot, cfg, _ = _bot_with_config(tmp_path, monkeypatch)
+    bot.store.start_awaiting("", telegram_user=0, kind="new_channel")
+    bot._create_channel(111, "tg_crypto | قناة العملات | عملات, بيتكوين")
+    ch = next((c for c in load_config(str(cfg)).channels if c.id == "tg_crypto"), None)
+    assert ch is not None and ch.tags == ["عملات", "بيتكوين"]
+
+
+def test_warn_when_two_channels_share_sector(tmp_path, monkeypatch):
+    """الخلط لا يكون صامتاً: قناة ثانية بنفس الاختصاص تُنبّه."""
+    bot, cfg, sent = _bot_with_config(tmp_path, monkeypatch)
+    bot.store.start_awaiting("", telegram_user=0, kind="new_channel")
+    bot._create_channel(111, "قناة الأنمي والمانغا — أخبار الأنمي والمانغا")
+    assert "تنبيه" in sent[-1] and "tg_anime" in sent[-1]
+
+
+def test_unknown_name_falls_back_safely(tmp_path, monkeypatch):
+    """اسم مبهم → لا اختصاص، لكن القناة تستقبل كل شيء (آمن) وتُضاف بنجاح."""
+    from autonews.config_loader import load_config
+
+    bot, cfg, sent = _bot_with_config(tmp_path, monkeypatch)
+    bot.store.start_awaiting("", telegram_user=0, kind="new_channel")
+    bot._create_channel(111, "قناة رقم ٧")
+    ids = [c.id for c in load_config(str(cfg)).channels]
+    assert any(i.startswith("tg_new") for i in ids)
+    assert "لم أتعرّف" in sent[-1]
+
+
+def test_set_max_posts_from_bot(tmp_path, monkeypatch):
+    """🔢 المتطلب ٤: تعديل عدد المنشورات من البوت (يقبل الأرقام العربية)."""
+    from autonews.config_loader import load_config
+
+    bot, cfg, sent = _bot_with_config(tmp_path, monkeypatch)
+    bot._set_max_posts(111, "tg_tech", "٦")
+    ch = next(c for c in load_config(str(cfg)).channels if c.id == "tg_tech")
+    assert ch.max_posts_per_run == 6
+    assert "✅" in sent[-1]
+
+
+def test_set_max_posts_rejects_text(tmp_path, monkeypatch):
+    bot, cfg, sent = _bot_with_config(tmp_path, monkeypatch)
+    bot._set_max_posts(111, "tg_tech", "كثير")
+    assert "❌" in sent[-1]

@@ -171,3 +171,112 @@ def test_apply_unclear_name_keeps_channel_open(cfgdir):
     ok, msg = apply_to_channel("tg_main", "قناة دجلة", config_dir=str(cfgdir), override=True)
     assert not ok
     assert "لم أتعرّف" in msg
+
+
+# --------------------------------------------------------------------------- #
+#  ٤) التصنيف اليدوي — sector_of · set_sector · catalog
+# --------------------------------------------------------------------------- #
+def test_sector_of_reads_from_tags(cfgdir):
+    from autonews.sectors import sector_of
+
+    assert sector_of("tg_anime", config_dir=str(cfgdir)).key == "anime"
+    assert sector_of("tg_main", config_dir=str(cfgdir)).key == "news"
+
+
+def test_sector_of_unknown_channel(cfgdir):
+    from autonews.sectors import sector_of
+
+    assert sector_of("tg_does_not_exist", config_dir=str(cfgdir)) is None
+
+
+def test_set_sector_switches_tags_and_sources(cfgdir):
+    """تغيير الاختصاص يدوياً: الوسوم والمصادر تتبدّل معاً (لا تختلط)."""
+    from autonews.config_loader import load_config
+    from autonews.sectors import sector_of, set_sector
+
+    ok, msg = set_sector("tg_sports", "tech", config_dir=str(cfgdir))
+    assert ok, msg
+    ch = next(c for c in load_config(str(cfgdir)).channels if c.id == "tg_sports")
+    assert "تقنية" in ch.tags
+    assert "رياضة" not in ch.tags, "وسوم الاختصاص القديم يجب أن تُحذف"
+    assert sector_of("tg_sports", config_dir=str(cfgdir)).key == "tech"
+
+
+def test_set_sector_rejects_unknown(cfgdir):
+    from autonews.sectors import set_sector
+
+    ok, msg = set_sector("tg_anime", "nope", config_dir=str(cfgdir))
+    assert not ok and "غير معروف" in msg
+
+
+def test_catalog_lists_all_sectors():
+    from autonews.sectors import catalog
+
+    items = catalog()
+    assert len(items) >= 14
+    assert all({"key", "label", "icon", "tags"} <= set(i) for i in items)
+
+
+# --------------------------------------------------------------------------- #
+#  ٥) عدد المنشورات لكل قناة (من البوت)
+# --------------------------------------------------------------------------- #
+def test_update_channel_setting_changes_cap(cfgdir):
+    from autonews.config_loader import load_config
+    from autonews.editor import update_channel_setting
+
+    res = update_channel_setting("tg_tech", "max_posts_per_run", 7, config_dir=str(cfgdir))
+    assert res.ok, res.message
+    ch = next(c for c in load_config(str(cfgdir)).channels if c.id == "tg_tech")
+    assert ch.max_posts_per_run == 7
+
+
+def test_update_channel_setting_rejects_bad_value(cfgdir):
+    from autonews.editor import update_channel_setting
+
+    assert not update_channel_setting("tg_tech", "max_posts_per_run", "كثير",
+                                      config_dir=str(cfgdir)).ok
+    assert not update_channel_setting("tg_tech", "max_posts_per_run", 999,
+                                      config_dir=str(cfgdir)).ok
+    assert not update_channel_setting("tg_tech", "unknown_key", 1,
+                                      config_dir=str(cfgdir)).ok
+
+
+def _raw_enabled(cfgdir, cid):
+    import yaml
+
+    data = yaml.safe_load((cfgdir / "channels.yml").read_text(encoding="utf-8"))
+    return next(c for c in data["channels"] if c["id"] == cid)["enabled"]
+
+
+def test_set_channel_enabled_toggles(cfgdir):
+    """تعطيل/تفعيل قناة من البوت: القناة تبقى في الملف (كي تظهر باللوحة) لكن لا تُنشر."""
+    from autonews.config_loader import load_config
+    from autonews.editor import set_channel_enabled
+
+    assert set_channel_enabled("tg_games", False, config_dir=str(cfgdir)).ok
+    assert _raw_enabled(cfgdir, "tg_games") is False
+    # التعطيل يمنع النشر فعلاً (لا يظهر ضمن قنوات التشغيل)
+    assert "tg_games" not in [c.id for c in load_config(str(cfgdir)).channels]
+
+    assert set_channel_enabled("tg_games", True, config_dir=str(cfgdir)).ok
+    assert _raw_enabled(cfgdir, "tg_games") is True
+    assert "tg_games" in [c.id for c in load_config(str(cfgdir)).channels]
+
+
+# --------------------------------------------------------------------------- #
+#  ٦) مصادر مقترحة لقطاع بلا مصادر (لا قناة صامتة)
+# --------------------------------------------------------------------------- #
+def test_suggest_sources_generates_google_news_urls():
+    from autonews.sectors import SECTORS, suggest_sources
+
+    items = suggest_sources(SECTORS["anime"])
+    assert items and all("news.google.com/rss" in i["url"] for i in items)
+    assert all(i["tags"] for i in items)
+
+
+def test_every_sector_has_queries():
+    """كل قطاع يجب أن يعرف كيف يبحث عن أخباره (وإلا صمت عند الحاجة)."""
+    from autonews.sectors import SECTORS
+
+    missing = [p.label for p in SECTORS.values() if not p.queries]
+    assert not missing, f"قطاعات بلا استعلامات: {missing}"

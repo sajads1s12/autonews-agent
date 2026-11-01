@@ -251,7 +251,26 @@ def test_telegram_publish_success(monkeypatch):
 # --------------------------------------------------------------------------- #
 #  8) تحميل الإعدادات
 # --------------------------------------------------------------------------- #
+#  متغيّرات تشغيلية تُغيّر سلوك load_config. الاختبارات التي تفحص **الملفات**
+#  يجب أن تعزلها، وإلا فالنتيجة تتوقّف على بيئة من يشغّلها:
+#    · AI_DISABLED=true في CI  → keys تُفرَّغ فيفشل فحص المفاتيح
+#    · REQUIRE_REVIEW=true      → review يُفرض
+#    · ENABLED_CHANNELS/SOURCES → قوائم تُقلَّم
+ENV_NOISE = ("AI_DISABLED", "REQUIRE_REVIEW", "ENABLED_CHANNELS", "ENABLED_SOURCES",
+             "GEMINI_API_KEYS", "GEMINI_API_KEY", "GEMINI_MODELS", "TELEGRAM_BOT_TOKEN",
+             "TELEGRAM_CHAT_ID", "STATE_FILE", "MAX_ITEMS_PER_RUN", "TZ_OFFSET")
+
+
+def isolate_env(monkeypatch):
+    """يعزل الاختبار عن أي متغيّر بيئة يغيّر نتيجة تحميل الإعدادات."""
+    for name in ENV_NOISE:
+        monkeypatch.delenv(name, raising=False)
+    for i in range(1, 11):
+        monkeypatch.delenv(f"GEMINI_API_KEY_{i}", raising=False)
+
+
 def test_load_config_from_repo(monkeypatch):
+    isolate_env(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEYS", "k1,k2,k3")
     settings = load_config("config")
     assert len(settings.ai.keys) == 3
@@ -260,8 +279,29 @@ def test_load_config_from_repo(monkeypatch):
 
 
 def test_load_config_reads_numbered_keys(monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEYS", raising=False)
+    isolate_env(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY_1", "key-one-long-enough")
     monkeypatch.setenv("GEMINI_API_KEY_3", "key-three-long-enough")
     settings = load_config("config")
     assert settings.ai.keys == ["key-one-long-enough", "key-three-long-enough"]
+
+
+def test_ai_disabled_env_empties_keys(monkeypatch):
+    """AI_DISABLED سلوك **مقصود** لا خطأ: يُفرّغ المفاتيح ليُستخدم النصّ الاحتياطي."""
+    isolate_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEYS", "k1,k2,k3")
+    monkeypatch.setenv("AI_DISABLED", "true")
+    assert load_config("config").ai.keys == []
+
+
+def test_run_once_has_all_names_it_uses():
+    """حرس ضد أخطاء NameError في المسار الكامل — كلها كانت تُسقِط النشر بصمت.
+
+    حدث فعلاً: ControlStore وKIND_SCHEDULED كانا مستخدمَين وغير مستوردَين،
+    فكان التشغيل يموت بعد سحب الأخبار وقبل النشر.
+    """
+    import autonews.main as M
+
+    for name in ("ControlStore", "KIND_SCHEDULED", "KIND_APPROVAL", "decide",
+                 "due_iso", "local_hour", "minutes_until_open", "preview_text"):
+        assert hasattr(M, name), f"main.py يستخدم {name} بلا استيراد"
