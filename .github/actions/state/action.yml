@@ -1,0 +1,59 @@
+# =============================================================================
+#  🔗 مزامنة الحالة — استعادة/حفظ مع المستودع الخاص
+#
+#  لماذا Composite Action؟
+#    • كل المسارات تستخدم نفس المنطق ⇒ سلوك واحد عند الفشل.
+#    • `continue-on-error: true` مضمّن: **فشل المزامنة لا يُفشل النشر أبداً**
+#      (النشر أهمّ من الذاكرة — والخبر لا يُفقد إن تعطّل GitHub لثوانٍ).
+#
+#  الأسرار المطلوبة (اختيارية):
+#    STATE_REPO       → owner/autonews-state
+#    STATE_REPO_TOKEN → PAT يقرأ ويكتب مستودع الحالة وحده
+# =============================================================================
+
+name: "🔗 مزامنة الحالة"
+description: "استعادة أو حفظ حالة البوت من/إلى المستودع الخاص"
+
+inputs:
+  action:
+    description: "restore | save | status"
+    required: true
+    default: "status"
+  message:
+    description: "رسالة الـ commit"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: 🔗 state::${{ inputs.action }}
+      shell: bash
+      # ⚠️ لا يُفشل التشغيل: النشر يجب أن يكمل حتى لو تعذّرت المزامنة
+      continue-on-error: true
+      env:
+        PYTHONPATH: src
+        STATE_REPO: ${{ env.STATE_REPO }}
+        STATE_REPO_TOKEN: ${{ env.STATE_REPO_TOKEN }}
+        STATE_REPO_BRANCH: ${{ env.STATE_REPO_BRANCH || 'main' }}
+      run: |
+        set -uo pipefail
+        ACTION="${{ inputs.action }}"
+        MSG="${{ inputs.message }}"
+        if [ ! -f src/autonews/state_sync.py ]; then
+          echo "⚠️ state_sync غير موجود — تجاوز"
+          exit 0
+        fi
+        if [ -z "${STATE_REPO:-}" ] || [ -z "${STATE_REPO_TOKEN:-}" ]; then
+          echo "ℹ️ المزامنة غير مضبوطة (STATE_REPO / STATE_REPO_TOKEN) — الحالة محلية"
+          # نُظهر الحالة للتشخيص فقط
+          python -m autonews.state_sync status || true
+          exit 0
+        fi
+        if [ "$ACTION" = "restore" ]; then
+          python -m autonews.state_sync restore || true
+        elif [ "$ACTION" = "save" ]; then
+          python -m autonews.state_sync save --message "$MSG" || true
+        else
+          python -m autonews.state_sync status || true
+        fi

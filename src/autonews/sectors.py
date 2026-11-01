@@ -336,12 +336,17 @@ def sources_for(sector: SectorProfile,
         return ["*"], "لا توجد مصادر معرّفة"
 
     if not sector.tags:
-        # قطاع عام = قناة «الرصاصة الفضية»: كل المصادر العربية، لأنها قناة الأخبار
-        # التي يجب أن تعرف كل شيء أولاً. الفصل عن القطاعات يحدث بالوسوم
-        # (`exclude_tags: [أنمي]`) لا بحجب المصادر — وإلا صمتت القناة الرئيسية.
-        ordered = sorted(items, key=lambda src: "ar" not in _source_langs(src))
-        return ([str(src["id"]) for src in ordered],
-                f"{len(ordered)} مصدراً (كل الأخبار)")
+        # قطاع عام = قناة «الرصاصة الفضية»: كل المصادر.
+        #
+        #  ⚠️ نُرجع الرمز `*` لا **قائمة** بكل المصادر الحالية.
+        #  الفرق جوهري: القائمة تُجمَّد في channels.yml وقت الإضافة، فأي مصدر
+        #  جديد يُضاف لاحقاً (من البوت) لا يصل القناة العامة أبداً — وهذا حدث
+        #  فعلاً: tg_main قُفل على ٣٩ مصدراً ولم يستقبل ما بعدها.
+        #  الرمز `*` يُحلّ وقت التوجيه (`router`)، فيبقى «كل المصادر» صحيحاً دائماً.
+        #
+        #  الفصل عن القطاعات يحدث بالوسوم (`exclude_tags: [أنمي]`) لا بحجب
+        #  المصادر — وإلا صمتت القناة الرئيسية.
+        return ["*"], f"كل المصادر (الرمز *) · {len(items)} معرّفاً معرَّفاً الآن"
 
     want = {str(t) for t in sector.tags}
     scored: list[tuple[float, dict]] = []
@@ -393,6 +398,65 @@ def _load_sources(config_dir: str) -> list[dict]:
         return []
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return [s for s in (data.get("sources") or []) if isinstance(s, dict)]
+
+
+def wildcard_channels(config: dict) -> list[str]:
+    """القنوات العامة (المفترض أنها «كل المصادر») — أي التي intersect_tags فارغة."""
+    out = []
+    for ch in (config.get("channels") or []):
+        if not isinstance(ch, dict):
+            continue
+        if not (ch.get("tags") or []) and not (ch.get("keywords") or []):
+            out.append(str(ch.get("id")))
+    return out
+
+
+def freeze_sources(channel_id: str, sector_key: str, *, config_dir: str = "config") -> bool:
+    """هل هذه القناة **مقصودة** بمصادر مجمَّدة؟
+
+    القطاع العام وحده هو الذي يجب أن يبقى `["*"]`. أي قناة قطاعها `news` أو
+    بلا اختصاص صريح تُترك كما هي — لا نلمس إعداداً مقصوداً.
+    """
+    return sector_key not in ("", "news", "general")
+
+
+def normalize_config(config_dir: str = "config", *, dry_run: bool = False) -> list[str]:
+    """يطهّر `channels.yml`: أي قناة عامة مصادرها **قائمة** تُقلَب إلى `["*"]`.
+
+    الفرق الذي يمنع الخطأ: القائمة المجمَّدة تمنع المصادر الجديدة من الوصول،
+    والرمز `*` يُحلّ وقت التوجيه فيبقى «كل المصادر» صحيحاً للأبد.
+
+    القنوات المخصّصة (لها وسوم/كلمات) لا تُلمَس — قواعد المشروع تحكمها.
+    """
+    from pathlib import Path
+
+    import yaml
+
+    from .editor import update_channel_sources
+
+    path = Path(config_dir) / "channels.yml"
+    if not path.exists():
+        return []
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    fixed: list[str] = []
+    for ch in (data.get("channels") or []):
+        if not isinstance(ch, dict):
+            continue
+        cid = str(ch.get("id") or "")
+        if not cid:
+            continue
+        #  «مخصّصة» = لها وسوم أو كلمات توجيه. أمّا `exclude_tags` فهي **أداة
+        #  الفصل** نفسها (القناة العامة تستثني الأنمي) — لا دليل على التخصّص.
+        #  لو اعتبرناها كذلك لبقي خلل القناة الرئيسية بلا إصلاح.
+        if ch.get("tags") or ch.get("keywords"):
+            continue
+        srcs = ch.get("sources") or []
+        if srcs == ["*"]:
+            continue
+        fixed.append(cid)
+        if not dry_run:
+            update_channel_sources(cid, ["*"], config_dir=config_dir)
+    return fixed
 
 
 def apply_to_channel(channel_id: str, name: str, *, config_dir: str = "config",
@@ -622,4 +686,5 @@ def catalog(config_dir: str = "config") -> list[dict]:
     return out
 
 
-__all__ += ["sector_of", "set_sector", "catalog"]
+__all__ += ["sector_of", "set_sector", "catalog",
+            "wildcard_channels", "freeze_sources", "normalize_config"]

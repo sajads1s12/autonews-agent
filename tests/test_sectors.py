@@ -78,22 +78,45 @@ def test_anime_gets_only_anime_sources(sources):
         assert "أنمي" in (by_id[sid].get("tags") or []), sid
 
 
-def test_general_news_covers_everything(sources):
-    """القناة العامة يجب أن تعرف كل شيء — السرعة تغلب التخصيص هنا.
+def test_general_news_uses_wildcard_not_frozen_list(sources):
+    """القناة العامة = **الرمز** `*`، لا قائمة مجمَّدة بكل المصادر الحالية.
 
-    الفصل عن الأنمي/الرياضة يحدث بـ `exclude_tags` في القناة نفسها، لا بحجب
-    المصادر (وإلا صمتت القناة الرئيسية، وهذا يخالف شرط «الخبر أولاً بأول»).
+    كان الخلل: `sources_for(عام)` تُرجع قائمة بكل المعرّفات فتُكتب في
+    `channels.yml` وقت الإضافة، فأي مصدر جديد يُضاف لاحقاً (من البوت) لا يصل
+    القناة الرئيسية أبداً — قُفلت فعلياً على ٣٩ مصدراً.
+
+    الرمز `*` يُحلّ وقت التوجيه، فيبقى «كل المصادر» صحيحاً دائماً.
+    الفصل عن الأنمي/الرياضة يحدث بـ `exclude_tags` لا بحجب المصادر.
     """
-    picked, _ = sources_for(SECTORS["news"], sources)
-    assert len(picked) >= len(sources) - 2
-    # والعربية تسبق الإنجليزية في الترتيب
-    from autonews.sectors import _source_langs
+    picked, why = sources_for(SECTORS["news"], sources)
+    assert picked == ["*"], f"القناة العامة يجب أن تحصل على '*' لا {len(picked)} معرّفاً"
+    assert "كل المصادر" in why
 
-    by_id = {s["id"]: s for s in sources}
-    assert "ar" in _source_langs(by_id[picked[0]])
-    eng = [i for i, sid in enumerate(picked) if "en" in _source_langs(by_id[sid])]
-    ara = [i for i, sid in enumerate(picked) if "ar" in _source_langs(by_id[sid])]
-    assert not eng or not ara or max(ara) < min(eng), "يجب أن تتقدّم المصادر العربية"
+
+def test_wildcard_reaches_new_sources_at_routing_time():
+    """الرمز `*` يُحلّ في الموجّه: مصدر يُضاف بعد الإعداد يصل القناة العامة."""
+    from autonews.config_loader import Channel
+    from autonews.ingest import Article
+    from autonews.router import ContentRouter
+
+    general = Channel(id="tg_main", name="الرئيسية", platform="telegram",
+                      sources=["*"], exclude_tags=["أنمي"])
+    anime = Channel(id="tg_anime", name="أنمي", platform="telegram",
+                    sources=["ann_anime"], tags=["أنمي"])
+
+    later = Article(title="خبر من مصدر أُضيف لاحقاً", summary="تفاصيل", content="",
+                    url="https://e.com/x", source_id="added_later",
+                    source_name="جديد", tags=["أخبار"])
+    ids = [r.channel.id for r in ContentRouter([general, anime]).route(later)]
+    assert "tg_main" in ids, "القناة العامة لم تستقبل مصدراً جديداً — عاد القفل"
+    assert "tg_anime" not in ids
+
+    anime_post = Article(title="فيلم أنمي جديد", summary="تفاصيل", content="",
+                         url="https://e.com/y", source_id="ann_anime",
+                         source_name="أنمي", tags=["أنمي"])
+    ids = [r.channel.id for r in ContentRouter([general, anime]).route(anime_post)]
+    assert "tg_anime" in ids
+    assert "tg_main" not in ids, "خبر الأنمي تسرّب للقناة العامة — الفصل انكسر"
 
 
 def test_every_sector_has_at_least_one_source(sources):
@@ -280,3 +303,92 @@ def test_every_sector_has_queries():
 
     missing = [p.label for p in SECTORS.values() if not p.queries]
     assert not missing, f"قطاعات بلا استعلامات: {missing}"
+
+
+# --------------------------------------------------------------------------- #
+#  الرمز «*» — كل المصادر، لا اسم قطاع ولا قائمة مجمَّدة
+# --------------------------------------------------------------------------- #
+def test_star_is_not_a_sector():
+    """«*» رمز يعني كل المصادر — لا يُفسَّر كاسم قطاع."""
+    from autonews.sectors import detect
+
+    assert detect("*") is None
+    assert detect("all") is None
+
+
+def test_general_channel_gets_star_in_added_channel(tmp_path):
+    """قناة عامة تُضاف من البوت → `sources: ["*"]` لا قائمة مجمَّدة."""
+    import shutil
+
+    from autonews.channels_main import load_channels
+
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    for name in ("channels.yml", "settings.yml", "occasions.yml"):
+        shutil.copy(f"config/{name}", cfg / name)
+
+    from autonews.editor import add_channel, suggest_channel_id
+    from autonews.sectors import apply_to_channel, detect
+
+    profile = detect("قناة الأخبار العاجلة واليومية")
+    assert profile is not None and not profile.tags        # قطاع عام
+    cid = suggest_channel_id("قناة الأخبار العاجلة", existing=set())
+    ok, _ = add_channel(cid, name="قناة الأخبار العاجلة",
+                        tags=list(profile.tags), config_dir=str(cfg))
+    assert ok
+    apply_to_channel(cid, "قناة الأخبار العاجلة", config_dir=str(cfg), override=True)
+
+    ch = next(c for c in load_channels(str(cfg)) if c["id"] == cid)
+    assert ch["sources"] == ["*"], f"القناة العامة قُفلت على {ch.get('sources')}"
+
+
+def test_normalize_config_unlocks_frozen_general_channel(tmp_path):
+    """تطهير الإعدادات: قناة عامة بمصادر مجمَّدة تُقلَب إلى `*` — والمخصّصة لا تُلمَس."""
+    import shutil
+
+    import yaml
+
+    from autonews.sectors import normalize_config
+
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    for name in ("channels.yml", "settings.yml", "occasions.yml"):
+        shutil.copy(f"config/{name}", cfg / name)
+
+    data = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
+    main = next(c for c in data["channels"] if c["id"] == "tg_main")
+    main["sources"] = ["ina_official", "shafaq"]           # قفل قديم
+    sports = next(c for c in data["channels"] if c["id"] == "tg_sports")
+    before_sports = list(sports["sources"])
+    (cfg / "channels.yml").write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    fixed = normalize_config(str(cfg))
+    assert "tg_main" in fixed
+
+    after = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
+    assert next(c for c in after["channels"] if c["id"] == "tg_main")["sources"] == ["*"]
+    assert next(c for c in after["channels"] if c["id"] == "tg_sports")["sources"] == before_sports
+    # ولا أثر ثانٍ عند إعادة التشغيل
+    assert normalize_config(str(cfg)) == []
+
+
+def test_exclude_tags_is_separation_not_customisation(tmp_path):
+    """exclude_tags أداة فصل — لا تعني أن القناة مخصّصة فيُترك قفلها."""
+    import shutil
+
+    import yaml
+
+    from autonews.sectors import normalize_config
+
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    for name in ("channels.yml", "settings.yml", "occasions.yml"):
+        shutil.copy(f"config/{name}", cfg / name)
+    data = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
+    main = next(c for c in data["channels"] if c["id"] == "tg_main")
+    main["sources"] = ["shafaq"]
+    main["exclude_tags"] = ["أنمي"]
+    (cfg / "channels.yml").write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    assert "tg_main" in normalize_config(str(cfg))

@@ -76,6 +76,36 @@ class TagEdit:
         self.warnings = list(self.warnings or [])
 
 
+def _block_list_end(lines: list[str], start: int, end: int) -> int:
+    """نهاية قائمة YAML عمودية تبدأ عند `start`:
+        sources:
+        - a
+        - b
+    ترجع أول سطر لا ينتمي إليها (سطر أعمق بعناصر ليست `-`).
+    """
+    base = len(lines[start]) - len(lines[start].lstrip())
+    i = start + 1
+    last = start
+    while i < end:
+        raw = lines[i]
+        if not raw.strip():
+            break
+        indent = len(raw) - len(raw.lstrip())
+        #  YAML يسمح بالعناصر على نفس مسافة المفتاح:
+        #      sources:
+        #      - a
+        #  فالمعيار: لا يكون السطر أعمق **ولا** عنصر قائمة ⇒ نهاية الكتلة.
+        if indent < base or not raw.lstrip().startswith("- "):
+            break
+        last = i
+        i += 1
+    return last
+
+
+def _render_inline(items: list[str]) -> str:
+    return "[" + ", ".join(f'"{i}"' for i in items) + "]"
+
+
 def _read_channel_tags(path: Path, channel_id: str) -> list[str]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     for item in data.get("channels") or []:
@@ -115,7 +145,17 @@ def update_channel_sources(channel_id: str, sources: list[str], *,
         comment = ""
         if "#" in lines[src_at]:
             comment = "   #" + lines[src_at].split("#", 1)[1].rstrip("\n")
-        lines[src_at] = f"{indent}sources: {line_value}{comment}\n"
+        value = lines[src_at].split(":", 1)[1].split("#")[0].strip()
+        #  الصيغة العمودية:
+        #      sources:
+        #      - a
+        #  سطر `sources:` وحده فارغ ⇒ نستبدل الكتلة كلها بسطر واحد،
+        #  وإلا بقيت أسطر `- a` بعد سطر جديد فصار الملف تالفاً.
+        if not value:
+            tail = _block_list_end(lines, src_at, end)
+            lines[src_at:tail + 1] = [f"{indent}sources: {line_value}{comment}\n"]
+        else:
+            lines[src_at] = f"{indent}sources: {line_value}{comment}\n"
 
     new_text = "".join(lines)
     problem = _verify_yaml(new_text, key="channels")
@@ -177,7 +217,13 @@ def update_channel_tags(channel_id: str, *, add: list[str] | None = None,
         comment = ""
         if "#" in lines[tag_at]:
             comment = "   #" + lines[tag_at].split("#", 1)[1].rstrip("\n")
-        lines[tag_at] = f"{indent}tags: {line_value}{comment}\n"
+        value = lines[tag_at].split(":", 1)[1].split("#")[0].strip()
+        if not value:
+            #  صيغة عمودية (tags: ثم - a) ⇒ استبدال الكتلة كلها
+            tail = _block_list_end(lines, tag_at, end)
+            lines[tag_at:tail + 1] = [f"{indent}tags: {line_value}{comment}\n"]
+        else:
+            lines[tag_at] = f"{indent}tags: {line_value}{comment}\n"
 
     new_text = "".join(lines)
     problem = _verify_yaml(new_text, key="channels")

@@ -286,3 +286,63 @@ def test_ai_disabled_is_intentional_and_documented():
 
     text = Path("tests/test_pipeline.py").read_text(encoding="utf-8")
     assert "test_ai_disabled_env_empties_keys" in text
+
+
+# --------------------------------------------------------------------------- #
+#  المتطلب: المستودع العام كود فقط — والخاص يحتفظ بالحالة
+# --------------------------------------------------------------------------- #
+def test_state_and_logs_never_tracked():
+    """بالـ .gitignore الحقيقي: state/ و logs/ لا تدخل المستودع العام أبداً."""
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    root = Path(tempfile.mkdtemp())
+    shutil.copy(".gitignore", root / ".gitignore")
+    (root / "config").mkdir()
+    (root / "src").mkdir()
+    (root / "state").mkdir()
+    (root / "logs").mkdir()
+    shutil.copy("config/channels.yml", root / "config" / "channels.yml")
+    (root / "src" / "app.py").write_text("# code\n", encoding="utf-8")
+    #  بيانات خاصة نموذجية: لا يجب أن تظهر في المستودع العام
+    (root / "state" / "channels_setup.json").write_text(
+        '{"tg_main": {"chat_id": "-1001234567890"}}', encoding="utf-8")
+    (root / "logs" / "run.log").write_text("نُشر إلى -1001234567890\n", encoding="utf-8")
+
+    def git(*a):
+        return subprocess.run(["git", "-C", str(root), *a], capture_output=True,
+                              text=True, check=True)
+
+    git("init", "-q")
+    git("config", "user.email", "t@t.t")
+    git("config", "user.name", "t")
+    git("add", "-A")
+    tracked = git("ls-files").stdout.split()
+
+    assert not [f for f in tracked if f.startswith(("state/", "logs/"))], \
+        f"بيانات خاصة دخلت المستودع العام: {tracked}"
+    assert "config/channels.yml" in tracked, "config/ هو القالب ويجب أن يُرفع"
+    assert "src/app.py" in tracked
+
+
+def test_config_has_no_real_identifiers_or_tokens():
+    """config/ فيه **أسماء** متغيّرات فقط — لا معرّفات ولا توكنات ولا مفاتيح."""
+    import re
+
+    patterns = [
+        (r"\b\d{8,10}:[A-Za-z0-9_-]{35}\b", "توكن بوت تيليجرام"),
+        (r"\b-100\d{10,}\b", "chat_id رقمي"),
+        (r"\bAIza[0-9A-Za-z_-]{35}\b", "مفتاح Gemini"),
+        (r"\bEAA[A-Za-z0-9]{50,}\b", "توكن فيسبوك"),
+    ]
+    from pathlib import Path
+
+    offenders = []
+    for path in Path("config").glob("*.yml"):
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for pat, label in patterns:
+            if re.search(pat, text):
+                offenders.append(f"{path}: {label}")
+    assert not offenders, "قيم حسّاسة في config/: " + ", ".join(offenders)

@@ -173,3 +173,72 @@ def test_feed_summary_shape():
     assert "قناة" in ok.summary() and "10" in ok.summary()
     bad = FeedCheck(False, "https://x", error="خطأ")
     assert "❌" in bad.summary()
+
+
+# --------------------------------------------------------------------------- #
+#  تعديل الوسوم/المصادر على **صيغة القائمة العمودية** أيضاً
+# --------------------------------------------------------------------------- #
+def _block_style_config(tmp_path):
+    """channels.yml بصيغة YAML العمودية كما يُنتجها أي محرّر/أداة:
+
+        sources:
+        - a
+        - b
+    """
+    import shutil
+
+    import yaml
+
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    for name in ("channels.yml", "settings.yml", "occasions.yml"):
+        shutil.copy(f"config/{name}", cfg / name)
+    data = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
+    (cfg / "channels.yml").write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return cfg
+
+
+def test_update_sources_on_block_style(tmp_path):
+    """الكتلة العمودية كانت تُنتج YAML تالفاً ⇒ فشل صامت للتعديل."""
+    import yaml
+
+    from autonews.editor import update_channel_sources
+
+    cfg = _block_style_config(tmp_path)
+    res = update_channel_sources("tg_main", ["*"], config_dir=str(cfg))
+    assert res.ok, res.message
+    data = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
+    main = next(c for c in data["channels"] if c["id"] == "tg_main")
+    assert main["sources"] == ["*"]
+    assert main["exclude_tags"] == ["أنمي"], "الفصل بين القطاعات انكسر"
+
+
+def test_update_tags_on_block_style(tmp_path):
+    import yaml
+
+    from autonews.editor import update_channel_tags
+
+    cfg = _block_style_config(tmp_path)
+    res = update_channel_tags("tg_sports", add=["كرة"], config_dir=str(cfg))
+    assert res.ok, res.message
+    data = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
+    sports = next(c for c in data["channels"] if c["id"] == "tg_sports")
+    assert "كرة" in sports["tags"]
+
+
+def test_update_sources_keeps_other_channels_intact(tmp_path):
+    """التعديل لا يمسّ قناة أخرى — لا اقتطاع خاطئ للكتلة."""
+    import yaml
+
+    from autonews.editor import update_channel_sources
+
+    cfg = _block_style_config(tmp_path)
+    before = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
+    update_channel_sources("tg_main", ["*"], config_dir=str(cfg))
+    after = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
+    assert len(after["channels"]) == len(before["channels"])
+    for old, new in zip(before["channels"], after["channels"]):
+        assert old["id"] == new["id"]
+        if old["id"] != "tg_main":
+            assert old.get("sources") == new.get("sources"), old["id"]

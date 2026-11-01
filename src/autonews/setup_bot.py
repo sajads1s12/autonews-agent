@@ -1235,7 +1235,13 @@ class SetupBot:
 
             ok_a, msg_a = apply_to_channel(cid, title, config_dir=self.config_dir,
                                            override=True)
-            sector_line = "\n\n" + msg_a if ok_a else "\n\n" + msg_a
+            #  نتحقّق من الملف فعلياً لا من رسالة الدالة وحدها
+            applied = next((c for c in load_channels(self.config_dir) if c.get("id") == cid), {})
+            srcs = applied.get("sources") or []
+            shown = ("كل المصادر (الرمز *)" if srcs == ["*"]
+                     else f"{len(srcs)} مصدراً: {', '.join(map(str, srcs[:3]))}")
+            sector_line = (f"\n\n{'✅' if ok_a else '⚠️'} {msg_a}"
+                           f"\n📡 المصادر في الملف: {shown}")
         else:
             sector_line = ("\n\n🤷 لم أعرف القطاع من الاسم — ستنشر كل الأخبار "
                            "(وهذا آمن). يمكنك تسميتها «أخبار الأنمي» مثلاً.")
@@ -1300,6 +1306,9 @@ class SetupBot:
             note = ensure_sources(profile, config_dir=self.config_dir)
             if note:
                 extra += f"\n{note}"
+            if not profile.tags:                    # قطاع عام
+                extra += ("\n📡 المصادر: <b>كل المصادر (الرمز *)</b> — "
+                          "أي مصدر تضيفه لاحقاً يصلها تلقائياً.")
             extra += "\n\n🔁 تقدر تغيّر الاختصاص في أي وقت من «✏️ الاختصاص»."
             dup = [c.get("id") for c in load_channels(self.config_dir)
                    if c.get("platform") == "telegram" and c.get("id") != cid
