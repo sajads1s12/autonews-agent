@@ -47,6 +47,29 @@ def test_detect_prefers_specialist_over_general():
     assert detect("أخبار الأنمي").key == "anime"
 
 
+@pytest.mark.parametrize("name,expected", [
+    ("أخبار المانغا", "anime"),                          # كانت news: «اخبار» تُحسب ×٢ و«مانغا» ×١
+    ("قناة المانغا — أخبار المانغا الجديدة", "anime"),
+    ("أخبار الأنمي", "anime"),
+    ("أخبار الرياضة", "sports"),
+    ("أخبار التقنية", "tech"),
+    ("أخبار الألعاب", "gaming"),
+    ("وكالة أخبار الرياضة", "sports"),                   # الأخصّ يتقدّم على «وكالة/أخبار»
+    ("أخبار عاجلة", "news"),
+    ("أخبار العراق", "news"),
+    ("الأخبار العامة", "news"),
+])
+def test_news_word_never_overrides_a_specific_sector(name, expected):
+    """«أخبار X» = قطاع X. وكلمة «أخبار» وحدها = الأخبار العامة."""
+    assert detect(name).key == expected
+
+
+def test_keyword_variants_are_not_double_counted():
+    """«انمي/أنمي» و«اخبار/أخبار» كلمة واحدة بعد التطبيع — تُحسب مرّة واحدة."""
+    assert score("أخبار عامة")["news"] == 3
+    assert score("الأنمي")["anime"] == 3
+
+
 def test_clean_name_strips_emoji_and_punctuation():
     cleaned = clean_name("🎌 قناة الأنمي | Manga 🍥")
     assert "🎌" not in cleaned and "|" not in cleaned

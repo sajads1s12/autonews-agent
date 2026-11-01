@@ -186,7 +186,7 @@ python examples/demo_failover.py
 ### 4) الاختبارات وفحص المفاتيح
 
 ```bash
-PYTHONPATH=src python -m pytest              # 286 اختباراً بلا شبكة
+PYTHONPATH=src python -m pytest              # مئات الاختبارات بلا شبكة
 PYTHONPATH=src python -m autonews.main --check --probe   # فحص كل مفتاح Gemini فعلياً
 ```
 
@@ -661,8 +661,8 @@ python -m autonews.setup_main --panel     # إرسال لوحة الأزرار
 python -m autonews.setup_main --poll      # التقاط ضغطاتك (يشتغل تلقائياً كل ٥ دقائق)
 ```
 
-> **الحلقة مكتملة بلا حاسوب**: `.github/workflows/setup.yml` يعمل كل ٥ دقائق، يقرأ
-> ضغطاتك، يربط القناة، ويحفظ الحالة في المستودع. تفتح تيليجرام على هاتفك فقط.
+> **الحلقة مكتملة بلا حاسوب**: `.github/workflows/control.yml` يعمل كل ٥ دقائق، يقرأ
+> ضغطاتك، يربط القناة، ويحفظ الحالة في المستودع الخاص `autonews-state`. تفتح تيليجرام على هاتفك فقط.
 
 ### ⚠️ حقيقة يجب أن تعرفها
 
@@ -972,7 +972,7 @@ autonews-agent/
 ├── src/autonews/dashboard_main.py    # أمر توليد اللوحة
 ├── src/autonews/chatid.py            # 🆕 اكتشاف/تحقّق/حفظ معرّف القناة
 ├── src/autonews/verticals/anime.py   # 🆕 كاشف الأنمي + الأسماء + البرومبت
-├── tests/                   # 286 اختباراً بلا شبكة
+├── tests/                   # مئات الاختبارات بلا شبكة
 ├── .github/workflows/autonews.yml
 ├── Dockerfile
 └── requirements.txt

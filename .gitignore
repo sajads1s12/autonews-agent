@@ -152,8 +152,6 @@ logs_*/
 !docs/*.md
 
 # Private local data
-/config/channels.yml
-/config/settings.yml
 /logs/
 /state/
 .env

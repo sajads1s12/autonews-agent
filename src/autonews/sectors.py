@@ -265,8 +265,12 @@ def score(name: str, username: str = "") -> dict[str, int]:
     result: dict[str, int] = {}
     for profile in SECTORS.values():
         points = 0
-        for kw in profile.keywords:
-            key = normalize_arabic(kw).lower()
+        # 🐛 «انمي» و«أنمي» (وكذلك «اخبار» و«أخبار») تتطابقان بعد التطبيع؛ كانت كل صيغة
+        #    تُحسب مرّتين فيتضاعف وزن القطاع الذي كتب مفرداته بالهمزتين («أخبار» = ٦)
+        #    ويتغلّب على قطاع أخصّ بكلمة واحدة («المانغا» = ٣) ⇒ «أخبار المانغا» تصير أخباراً عامة.
+        #    الحلّ: نعدّ كل كلمة مطبَّعة مرّة واحدة فقط.
+        normalized = dict.fromkeys(normalize_arabic(kw).lower() for kw in profile.keywords)
+        for key in normalized:
             if "_" in key:                          # مركّب: يطابق الجملة كلها
                 if key.replace("_", " ") in text.replace("_", " "):
                     points += 4
@@ -287,6 +291,12 @@ def detect(name: str, username: str = "") -> SectorProfile | None:
     scores = score(name, username)
     if not scores:
         return None
+    # «أخبار X» تعني X: القطاع الأخصّ يتقدّم دائماً على «الأخبار العامة» متى كانت له دلالة
+    # كافية. القناة العامة تستقبل كل شيء أصلاً، فلا خسارة في اختيار الأخصّ، أما العكس
+    # فيُسقط الأنمي/الرياضة في القناة العامة (وهو بالضبط ما فصلناه بـ exclude_tags).
+    specialists = {k: v for k, v in scores.items() if k != "news" and v >= 3}
+    if specialists:
+        scores = specialists
     best = max(scores.items(), key=lambda kv: (kv[1], SECTORS[kv[0]].priority))
     key, points = best
     if points < 3:                     # دلالة ضعيفة جداً = لا نخمّن

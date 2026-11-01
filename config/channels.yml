@@ -1,0 +1,358 @@
+# =============================================================================
+#  AutoNews Agent — القنوات والتوجيه
+#
+#  لكل قناة:
+#   platform      : telegram | facebook | x | console
+#   sources       : ["*"] لكل المصادر، أو قائمة معرّفات من settings.yml
+#   tags          : وسوم مطلوبة (فراغ = بلا شرط)
+#   keywords      : كلمات مفتاحية مطلوبة في العنوان/الملخص (فراغ = بلا شرط)
+#   style         : وصف الأسلوب الذي يُمرَّر للنموذج
+#   max_chars     : حدّ المنصّة
+#   credentials   : ربط بين اسم الحقل ومتغيّر البيئة (لا تكتب السرّ هنا!)
+#   max_posts_per_run : سقف النشر لهذه القناة في التشغيل الواحد
+#   with_image        : إرفاق صورة الخبر (og:image) إن وُجدت
+#   review_required   : إرسال مسوّدة للموافقة قبل النشر (يتطلّب review.enabled)
+#   breaking_boost    : السماح للأخبار العاجلة بتجاوز السقف
+#   threads           : تقسيم الخبر الطويل إلى سلسلة (X)
+#   flash_eligible    : مؤهّلة للنشر الفوري في المسار السريع (true/false)
+#   style_b           : أسلوب بديل لاختبار A/B (يُستخدم بالتناوب مع style)
+#   branding          : 🖋 بصمة الملكية — توقيع نصّي + علامة مائية على الصورة
+#                       + علامة خفيّة (صفرية العرض) تنتقل مع النسخ واللصق.
+#                       handle:@اسم_قناتك · stamp_on_image:true · hidden_mark:true
+# =============================================================================
+
+channels:
+  # ---------------------------------------------------------------- تيليجرام
+  - id: tg_main
+    name: "القناة الرئيسية — أخبار عاجلة"
+    platform: telegram
+    enabled: true
+    sources: ["*"]
+    # 🚫 فصل القطاعات: الأنمي له قناته المتخصّصة — لا يُكرَّر هنا.
+    #    احذف السطر التالي إن أردت أن تستقبل الرئيسية كل شيء.
+    exclude_tags: ["أنمي"]
+    style: >
+      أسلوب وكالة أنباء سريعة: جملة افتتاحية قوية، لغة فصحى موجزة،
+      تركيز على ما حدث ومتى وأين، بلا مبالغات. مناسب للقراءة على الهاتف.
+    language: ar
+    max_chars: 4096
+    add_hashtags: 4
+    add_emoji: true
+    include_source_link: true
+    include_signature: true
+    signature: "📡 تابعونا للحظة بلحظة"
+    max_posts_per_run: 4
+    with_image: true
+    breaking_boost: true
+    review_required: false
+    flash_eligible: true      # ← القناة الرئيسية تنشر العاجل فوراً
+    flash_priority: 10
+    credentials:
+      bot_token: TELEGRAM_BOT_TOKEN      # من @BotFather
+      chat_id: TELEGRAM_CHAT_ID          # مثل: @my_channel أو -1001234567890
+    # 🖋 بصمة الملكية — توقيع نصّي + علامة مائية على الصورة + علامة خفيّة
+    branding:
+      handle: ""                 # ← @اسم_قناتك (أو من البوت: زر «🖋 البصمة»)
+      title: "القناة الرئيسية"
+      footer: "📡 @{handle}"
+      stamp_on_image: true
+      position: bottom-right
+      hidden_mark: true
+    extra:
+      disable_web_page_preview: false
+      # parse_mode: HTML                # فعّله فقط إن أردت وسوم HTML
+
+  # ------------------------------------------------------------- 🎬 قناة الأنمي
+  - id: tg_anime
+    name: "قناة الأنمي"
+    platform: telegram
+    enabled: true
+    sources: ["myanimelist_news", "gnews_anime_ar", "animecorner", "gnews_anime_new"]
+    tags: ["أنمي", "مانغا"]
+    style: >
+      أسلوب مجلة أنمي: ابدأ باسم العمل الأصلي كما هو، ثم النبأ (إعلان/عرض/انتهاء). اذكر الاستوديو والموسم إن وردا.
+    language: ar
+    max_chars: 4096
+    add_hashtags: 4
+    add_emoji: true
+    include_source_link: true
+    include_signature: false
+    max_posts_per_run: 3
+    with_image: true
+    breaking_boost: false
+    review_required: false
+    flash_eligible: false
+    flash_priority: 5
+    credentials:
+      bot_token: TELEGRAM_BOT_TOKEN
+      chat_id: TELEGRAM_ANIME_CHAT_ID
+    # 🖋 بصمة الملكية — توقيع نصّي + علامة مائية على الصورة + علامة خفيّة
+    branding:
+      handle: ""   # ← @اسم_قناتك (أو من البوت: زر «🖋 البصمة»)
+      title: "قناة الأنمي"
+      footer: "🎬 @{handle}"
+      stamp_on_image: true
+      position: bottom-right
+      hidden_mark: true
+    extra:
+      disable_web_page_preview: false
+
+  # ------------------------------------------------------------- ⚽ قناة الرياضة
+  - id: tg_sports
+    name: "قناة الرياضة"
+    platform: telegram
+    enabled: true
+    sources: ["gnews_sports_iq", "gnews_sports_world"]
+    tags: ["رياضة", "كرة"]
+    style: >
+      أسلوب رياضي عراقي: النتيجة أولاً، ثم الاسم والملعب والتوقيت. الأرقام كما هي بلا مبالغة.
+    language: ar
+    max_chars: 4096
+    add_hashtags: 4
+    add_emoji: true
+    include_source_link: true
+    include_signature: false
+    max_posts_per_run: 4
+    with_image: true
+    breaking_boost: false
+    review_required: false
+    flash_eligible: false
+    flash_priority: 6
+    credentials:
+      bot_token: TELEGRAM_BOT_TOKEN
+      chat_id: TELEGRAM_SPORTS_CHAT_ID
+    # 🖋 بصمة الملكية — توقيع نصّي + علامة مائية على الصورة + علامة خفيّة
+    branding:
+      handle: ""                 # ← @اسم_قناتك (أو من البوت: زر «🖋 البصمة»)
+      title: "قناة الرياضة"
+      footer: "⚽ @{handle}"
+      stamp_on_image: true
+      position: bottom-right
+      hidden_mark: true
+    extra:
+      disable_web_page_preview: false
+
+  # ------------------------------------------------------------- 💻 قناة التقنية
+  - id: tg_tech
+    name: "قناة التقنية"
+    platform: telegram
+    enabled: true
+    sources: ["bbc_tech_ar", "gnews_tech_ar", "aitnews", "techwd"]
+    tags: ["تقنية", "علوم", "اتصالات"]
+    style: >
+      أسلوب تقني مبسّط: ما الجديد؟ ولماذا يهمّ القارئ العادي؟ بلا حشو تسويقي.
+    language: ar
+    max_chars: 4096
+    add_hashtags: 4
+    add_emoji: true
+    include_source_link: true
+    include_signature: false
+    max_posts_per_run: 3
+    with_image: true
+    breaking_boost: false
+    review_required: false
+    flash_eligible: false
+    flash_priority: 3
+    credentials:
+      bot_token: TELEGRAM_BOT_TOKEN
+      chat_id: TELEGRAM_TECH_CHAT_ID
+    # 🖋 بصمة الملكية — توقيع نصّي + علامة مائية على الصورة + علامة خفيّة
+    branding:
+      handle: ""                 # ← @اسم_قناتك (أو من البوت: زر «🖋 البصمة»)
+      title: "قناة التقنية"
+      footer: "💻 @{handle}"
+      stamp_on_image: true
+      position: bottom-right
+      hidden_mark: true
+    extra:
+      disable_web_page_preview: false
+
+  # ------------------------------------------------------------- 💰 قناة الاقتصاد والدولار
+  - id: tg_econ
+    name: "قناة الاقتصاد والدولار"
+    platform: telegram
+    enabled: true
+    sources: ["gnews_econ_iq"]
+    tags: ["اقتصاد", "دولار", "أسعار"]
+    style: >
+      أسلوب اقتصادي عملي: الرقم أولاً (سعر الصرف/الراتب/التضخم)، ثم السبب، ثم ما يعنيه للمواطن. بلا توقّعات مختلقة.
+    language: ar
+    max_chars: 4096
+    add_hashtags: 4
+    add_emoji: true
+    include_source_link: true
+    include_signature: false
+    max_posts_per_run: 3
+    with_image: true
+    breaking_boost: false
+    review_required: false
+    flash_eligible: false
+    flash_priority: 7
+    credentials:
+      bot_token: TELEGRAM_BOT_TOKEN
+      chat_id: TELEGRAM_ECON_CHAT_ID
+    # 🖋 بصمة الملكية — توقيع نصّي + علامة مائية على الصورة + علامة خفيّة
+    branding:
+      handle: ""                 # ← @اسم_قناتك (أو من البوت: زر «🖋 البصمة»)
+      title: "قناة الاقتصاد والدولار"
+      footer: "💰 @{handle}"
+      stamp_on_image: true
+      position: bottom-right
+      hidden_mark: true
+    extra:
+      disable_web_page_preview: false
+
+  # ------------------------------------------------------------- 🎮 قناة الألعاب
+  - id: tg_games
+    name: "قناة الألعاب"
+    platform: telegram
+    enabled: true
+    sources: ["gnews_games"]
+    tags: ["ألعاب", "قيمنق"]
+    style: >
+      أسلوب إعلام ألعاب: اسم اللعبة كما هو، ثم الخبر (إصدار/تحديث/إعلان).
+    language: ar
+    max_chars: 4096
+    add_hashtags: 4
+    add_emoji: true
+    include_source_link: true
+    include_signature: false
+    max_posts_per_run: 3
+    with_image: true
+    breaking_boost: false
+    review_required: false
+    flash_eligible: false
+    flash_priority: 4
+    credentials:
+      bot_token: TELEGRAM_BOT_TOKEN
+      chat_id: TELEGRAM_GAMES_CHAT_ID
+    # 🖋 بصمة الملكية — توقيع نصّي + علامة مائية على الصورة + علامة خفيّة
+    branding:
+      handle: ""                 # ← @اسم_قناتك (أو من البوت: زر «🖋 البصمة»)
+      title: "قناة الألعاب"
+      footer: "🎮 @{handle}"
+      stamp_on_image: true
+      position: bottom-right
+      hidden_mark: true
+    extra:
+      disable_web_page_preview: false
+
+  # ------------------------------------------------------------- 🗺️ قناة المحافظات والخدمات
+  - id: tg_local
+    name: "قناة المحافظات والخدمات"
+    platform: telegram
+    enabled: true
+    sources: ["gnews_weather_iq", "ina_official"]
+    tags: ["محافظات", "خدمات", "عطلة"]
+    style: >
+      أسلوب خدمي مباشر: ما القرار؟ وأي محافظة؟ وماذا يعني للساكن؟ ابدأ بالمشمول، واذكر المستثنى صريحاً.
+    language: ar
+    max_chars: 4096
+    add_hashtags: 4
+    add_emoji: true
+    include_source_link: true
+    include_signature: false
+    max_posts_per_run: 4
+    with_image: true
+    breaking_boost: false
+    review_required: false
+    flash_eligible: false
+    flash_priority: 8
+    credentials:
+      bot_token: TELEGRAM_BOT_TOKEN
+      chat_id: TELEGRAM_LOCAL_CHAT_ID
+    # 🖋 بصمة الملكية — توقيع نصّي + علامة مائية على الصورة + علامة خفيّة
+    branding:
+      handle: ""                 # ← @اسم_قناتك (أو من البوت: زر «🖋 البصمة»)
+      title: "قناة المحافظات"
+      footer: "🗺️ @{handle}"
+      stamp_on_image: true
+      position: bottom-right
+      hidden_mark: true
+    extra:
+      disable_web_page_preview: false
+
+  # ---------------------------------------------------------------- فيسبوك
+  - id: fb_page
+    name: "صفحة فيسبوك الرئيسية"
+    platform: facebook
+    enabled: true
+    sources: ["*"]
+    style: >
+      أسلوب تواصل اجتماعي ودود ومباشر: فقرة أولى قصيرة تلفت الانتباه،
+      ثم التفاصيل، ثم سؤال للتفاعل مع المتابعين في سطر واحد.
+    max_chars: 1800
+    add_hashtags: 3
+    add_emoji: true
+    include_source_link: true
+    include_signature: false
+    max_posts_per_run: 3
+    with_image: true
+    breaking_boost: true
+    flash_eligible: true
+    flash_priority: 5
+    extra:
+      ENV_PAGE_ID: ""          # ← يُملأ تلقائياً من البوت أو من المستودع الخاص
+    credentials:
+      page_id: FACEBOOK_PAGE_ID
+      page_access_token: FACEBOOK_PAGE_TOKEN      # الأفضل: توكن صفحة طويل الأمد
+      user_access_token: FACEBOOK_USER_TOKEN      # بديل: يُستخرج توكن الصفحة تلقائياً
+
+    # 🖋 بصمة الملكية — توقيع نصّي + علامة مائية على الصورة + علامة خفيّة
+    branding:
+      handle: ""                 # ← @اسم_قناتك (أو من البوت: زر «🖋 البصمة»)
+      title: "صفحة الأخبار"
+      footer: "تابعنا على فيسبوك: {handle}"
+      stamp_on_image: true
+      position: bottom-left
+      hidden_mark: true
+
+  # -------------------------------------------------------------------- X
+  - id: x_main
+    name: "حساب X"
+    platform: x
+    enabled: true
+    sources: ["*"]
+    tags: []              # اتركها فارغة لاستقبال كل شيء، أو حدّد مثل [سياسة, اقتصاد]
+    style: >
+      أسلوب X: عنوان واحد حادّ (أقل من 100 حرف) + سطر شرح + هاشتاغان.
+      لا حشو، لا مقدمات، ولا تكرار للعنوان في النص.
+    language: ar
+    max_chars: 280
+    add_hashtags: 2
+    add_emoji: false
+    include_source_link: true
+    include_signature: false
+    max_posts_per_run: 3
+    with_image: true
+    threads: true        # الخبر الطويل يصبح سلسلة مترابطة بدل اقتطاعه
+    flash_eligible: true
+    flash_priority: 8
+    credentials:
+      consumer_key: X_API_KEY
+      consumer_secret: X_API_SECRET
+      access_token: X_ACCESS_TOKEN
+      access_secret: X_ACCESS_SECRET
+      bearer_token: X_BEARER_TOKEN      # بديل OAuth2 (اختياري)
+
+
+  # --------------------------------------------------- قناة تجربة/تطوير محلية
+    # 🖋 بصمة الملكية — توقيع نصّي + علامة مائية على الصورة + علامة خفيّة
+    branding:
+      handle: ""                 # ← @اسم_قناتك (أو من البوت: زر «🖋 البصمة»)
+      title: "حساب X"
+      footer: "via @{handle}"
+      stamp_on_image: true
+      position: bottom-right
+      hidden_mark: false
+  - id: console_preview
+    name: "معاينة محلية"
+    platform: console
+    enabled: false        # فعّلها محلياً لرؤية المخرجات بلا أي توكنات
+    sources: ["*"]
+    style: "أسلوب إخباري مختصر"
+    max_chars: 2000
+    add_hashtags: 3
+    include_source_link: true
+    with_image: false
+    flash_eligible: false
