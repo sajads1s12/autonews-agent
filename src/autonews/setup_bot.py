@@ -236,7 +236,6 @@ def control_keyboard(known: list[str], control) -> list[list[dict]]:
     if row:
         rows.append(row)
     rows.append([{"text": "🚫 النشر التلقائي بلا موافقات يدوية", "callback_data": "panel"}])
-                 {"text": "📥 ما ينتظرني", "callback_data": "apv:list"}])
     rows.append([{"text": "↩️ الرئيسية", "callback_data": "panel"}])
     return rows
 
