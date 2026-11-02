@@ -37,6 +37,7 @@ class Channel:
     id: str
     name: str
     platform: str
+    description: str = ""
     enabled: bool = True
     # توجيه
     sources: list[str] = field(default_factory=list)
