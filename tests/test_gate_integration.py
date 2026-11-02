@@ -53,6 +53,8 @@ def _gate(control: ControlStore, channel_id: str, post, *, breaking: bool,
     action, why = decide(mode=mode, post=post, score=score,
                          reasons=list(getattr(verdict, "warnings", []) or []),
                          min_score=c.min_score, breaking=breaking)
+    if action == "discard":
+        return "discard", {"why": why}
 
     hour = local_hour(tz_offset)
     if not breaking and is_quiet(hour, c.quiet_start, c.quiet_end):
