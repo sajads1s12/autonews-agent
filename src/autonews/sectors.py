@@ -49,15 +49,36 @@ def _add(profile: SectorProfile) -> None:
 
 
 _add(SectorProfile(
-    key="anime", label="أنمي ومانغا", icon="🎌",
-    keywords=("انمي", "أنمي", "مانجا", "مانغا", "اوتاكو", "أوتاكو", "شونين",
-              "سينين", "انيمي", "كرتون", "خيال_ياباني", "anime", "manga", "otaku"),
-    tags=("أنمي", "مانغا"),
-    hashtags=("#أنمي", "#مانغا"),
-    style=("أسلوب أوتاكو متحمّس لكن دقيق: ابدأ باسم العمل والمصدر، "
-           "واذكر الموعد أو الحلقة، ونبّه على الحرق (Spoiler) إن وُجد. "
-           "لا تترجم أسماء الأعلام، واستخدم مصطلحات الأنمي المتعارف عليها."),
+    key="anime", label="أنمي", icon="🎌",
+    keywords=("انمي", "أنمي", "اوتاكو", "أوتاكو", "شونين", "سينين",
+              "انيمي", "كرتون", "خيال_ياباني", "anime", "otaku"),
+    tags=("أنمي",),
+    hashtags=("#أنمي",),
+    style=("أسلوب أخبار أنمي: ابدأ باسم العمل والإعلان أو الحلقة، "
+           "واذكر موعد الإصدار أو الموسم إن ورد، مع إبقاء أسماء الأعمال الأصلية."),
     priority=30,
+    queries=('"anime announcement" OR "anime season" OR "anime release date" when:2d',
+             '"new anime episodes schedule" OR "anime sequel" when:7d'),
+))
+_add(SectorProfile(
+    key="manga", label="مانغا", icon="📚",
+    keywords=("مانغا", "مانجا", "manga", "mangas", "مانغا_يابانية"),
+    tags=("مانغا",),
+    hashtags=("#مانغا",),
+    style="أخبار مانغا: اسم العمل أولاً، ثم رقم الفصل أو موعده أو إعلان النشر.",
+    priority=35,
+    queries=('"manga chapter" OR "manga release date" OR "manga announcement" when:2d',
+             '"new manga serialization" OR "manga hiatus return" when:7d'),
+))
+_add(SectorProfile(
+    key="manhwa", label="مانهوا وويب تون", icon="📖",
+    keywords=("مانهوا", "مانهو", "ويبتون", "ويب_تون", "manhwa", "webtoon"),
+    tags=("مانهوا",),
+    hashtags=("#مانهوا", "#ويب_تون"),
+    style="أخبار مانهوا وويب تون: اسم العمل ثم الفصل أو موعد التحديث أو الإعلان.",
+    priority=38,
+    queries=('"manhwa chapter" OR "webtoon release" OR "manhwa announcement" when:2d',
+             '"new manhwa" OR "webtoon hiatus return" when:7d'),
 ))
 _add(SectorProfile(
     key="gaming", label="ألعاب وقيمنق", icon="🎮",
