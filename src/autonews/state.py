@@ -135,10 +135,26 @@ class State:
         canonical = self._canonical_news_url(url)
         if not canonical:
             return False
+        from difflib import SequenceMatcher
+        import re
+        def norm_title(value: str) -> str:
+            value = (value or "").lower()
+            value = re.sub(r"https?://\\S+", " ", value)
+            value = re.sub(r"[^\\w\\s]", " ", value, flags=re.UNICODE)
+            return " ".join(value.split())
+        current_title = norm_title(title)
         for item in self.posted[-lookback:]:
             old_url = self._canonical_news_url(str(item.get("url", "")))
             if old_url and old_url == canonical:
                 return True
+            old_title = norm_title(str(item.get("title", "")))
+            if current_title and old_title:
+                if current_title == old_title:
+                    return True
+                # تشابه عالٍ جداً فقط لتجنب دمج أخبار مختلفة عن الموضوع نفسه.
+                if min(len(current_title), len(old_title)) >= 32 and SequenceMatcher(
+                        None, current_title, old_title).ratio() >= 0.96:
+                    return True
         return False
 
     def was_posted_to(self, channel_id: str, article_fp: str) -> bool:
