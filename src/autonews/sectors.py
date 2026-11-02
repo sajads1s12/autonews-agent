@@ -283,6 +283,23 @@ def score(name: str, username: str = "") -> dict[str, int]:
     return result
 
 
+
+def detect_custom_profile(name: str) -> SectorProfile | None:
+    """ملف اختصاص مستقل للقنوات ذات المواضيع غير المدرجة في القطاعات العامة."""
+    from hashlib import sha1
+    clean = clean_name(name)
+    words = [w for w in clean.split() if w not in _NOISE and len(w) > 1]
+    if not words:
+        return None
+    label = " ".join(words[:6])
+    slug = sha1(label.encode("utf-8")).hexdigest()[:8]
+    return SectorProfile(
+        key=f"custom_{slug}", label=label, icon="🧭", keywords=tuple(words),
+        tags=(f"custom_{slug}",),
+        style="قناة متخصصة: انشر فقط ما يرتبط مباشرة بموضوع القناة، مع ترجمة عربية ورابط مصدر.",
+        priority=5, queries=(f'"{label}" when:2d', f"{label} إعلان OR إصدار when:7d"),
+    )
+
 def detect(name: str, username: str = "") -> SectorProfile | None:
     """القطاع الأرجح لاسم قناة، أو None إن لم تتّضح أي دلالة.
 
@@ -290,7 +307,10 @@ def detect(name: str, username: str = "") -> SectorProfile | None:
     """
     scores = score(name, username)
     if not scores:
-        return None
+        # اختصاص مخصّص لأي اسم جديد: لا نفرض قائمة قطاعات ثابتة.
+        # نستخدم كلمات الاسم نفسها كاستعلام بحث، وننشئ وسماً خاصاً به
+        # حتى لا تختلط مصادره ببقية القنوات.
+        return detect_custom_profile(name)
     # «أخبار X» تعني X: القطاع الأخصّ يتقدّم دائماً على «الأخبار العامة» متى كانت له دلالة
     # كافية. القناة العامة تستقبل كل شيء أصلاً، فلا خسارة في اختيار الأخصّ، أما العكس
     # فيُسقط الأنمي/الرياضة في القناة العامة (وهو بالضبط ما فصلناه بـ exclude_tags).
@@ -299,8 +319,8 @@ def detect(name: str, username: str = "") -> SectorProfile | None:
         scores = specialists
     best = max(scores.items(), key=lambda kv: (kv[1], SECTORS[kv[0]].priority))
     key, points = best
-    if points < 3:                     # دلالة ضعيفة جداً = لا نخمّن
-        return None
+    if points < 3:                     # دلالة ضعيفة جداً = لا نخمّن قطاعاً معروفاً
+        return detect_custom_profile(name)
     return SECTORS[key]
 
 
@@ -518,7 +538,7 @@ def apply_to_channel(channel_id: str, name: str, *, config_dir: str = "config",
     return True, summary(profile, picked, why)
 
 
-__all__ = ["SectorProfile", "SECTORS", "clean_name", "score", "detect",
+__all__ = ["SectorProfile", "SECTORS", "clean_name", "score", "detect", "detect_custom_profile",
            "detect_many", "sources_for", "summary", "apply_to_channel"]
 
 
