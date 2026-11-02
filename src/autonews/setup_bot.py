@@ -1297,7 +1297,10 @@ class SetupBot:
         profile = detect(name, description)
         if description.strip() and (profile is None or profile.key.startswith("custom_")):
             profile = detect_custom_profile(name, description)
-        if not tags and profile is not None:
+        if sector_key and not description.strip():
+            from .sectors import SECTORS
+            profile = SECTORS.get(sector_key) or profile
+        if profile is not None and not tags:
             tags = list(profile.tags)
         ok, msg = add_channel(cid, name=name, description=description,
                              tags=tags, config_dir=self.config_dir)
@@ -1312,8 +1315,6 @@ class SetupBot:
 
         # ضبط المصادر حسب الاختصاص (لا قناة صامتة) + ذكر ما جرى
         extra = ""
-        profile = (detect_custom_profile(name, description)
-                   if description.strip() else detect(name))
         if profile is not None:
             # أنشئ مصادر الموضوع أولاً، ثم اربط القناة بها؛ عكس الترتيب
             # كان يترك القناة على ["*"] فتستقبل كل الأخبار رغم اكتشاف اختصاصها.
