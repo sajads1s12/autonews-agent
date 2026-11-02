@@ -44,6 +44,8 @@ class Article:
     image_url: str = ""          # من الخلاصة/الصفحة (اختياري)
     enriched: bool = False       # هل أُكمل المتن من صفحة المصدر؟
     translated_from: str = ""    # لغة الأصل إن كان النص معرَّباً آلياً (en/fr/tr)
+    origin_url: str = ""
+    origin_name: str = ""
 
     @property
     def fp(self) -> str:
