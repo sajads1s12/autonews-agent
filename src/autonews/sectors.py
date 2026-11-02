@@ -341,7 +341,7 @@ def detect(name: str, username: str = "") -> SectorProfile | None:
     best = max(scores.items(), key=lambda kv: (kv[1], SECTORS[kv[0]].priority))
     key, points = best
     if points < 3:                     # دلالة ضعيفة جداً = لا نخمّن قطاعاً معروفاً
-        return detect_custom_profile(name)
+        return detect_custom_profile(name, username)
     return SECTORS[key]
 
 
