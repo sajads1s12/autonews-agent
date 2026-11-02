@@ -210,7 +210,7 @@ verticals:
 translation:
   enabled: true
   target: ar
-  langs: [en, fr, tr]        # اللغات التي نعرّبها (العربية تُترك كما هي)
+  langs: [en, fr, tr, ja, ko]        # اللغات التي نعرّبها (العربية تُترك كما هي)
   max_per_run: 5             # سقف التعريب لكل دورة (حفظاً لحصة Gemini)
   keep_original_name: true   # إبقاء الاسم الأصلي بين قوسين أول مرة
   require_numbers_match: true  # رفض أي تعريب يغيّر الأرقام
