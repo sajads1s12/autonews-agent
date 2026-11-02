@@ -713,13 +713,13 @@ def ensure_sources(sector: SectorProfile, *, config_dir: str = "config") -> str:
     from .utils import get_logger as _gl
 
     sources = _load_sources(config_dir)
-    picked, _ = sources_for(sector, sources)
-    if picked and picked != ["*"]:
-        return ""                              # له مصادر فعلية
-
+    if not sector.tags:
+        return "📡 قناة عامة: ستستخدم المصادر كلها."
+    # أضف استعلامات التغطية المتخصصة حتى لو كانت هناك مصادر ثابتة؛
+    # المعرّفات تُفحَص مسبقاً، لذلك لا تتكرر عند كل ربط.
     new_items = suggest_sources(sector, existing=sources)
     if not new_items:
-        return f"⚠️ لا توجد مصادر تلقائية متاحة لـ{sector.label}؛ لن تُرسل أخبار غير مرتبطة."
+        return ""
 
     from pathlib import Path
 
@@ -735,6 +735,7 @@ def ensure_sources(sector: SectorProfile, *, config_dir: str = "config") -> str:
             f'    name: "{item["name"]}"\n'
             f'    url: "{item["url"]}"\n'
             f"    type: rss\n    enabled: true\n"
+            f"    lang: {item['lang']}\n"
             f"    tags: [{tags}]\n    max_items: {item['max_items']}\n"
         )
     new_text = text.rstrip() + "\n" + block
