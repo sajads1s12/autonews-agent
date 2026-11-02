@@ -39,14 +39,14 @@ def has_independent_reports(article, articles, sources_by_id) -> bool:
     source = sources_by_id.get(str(getattr(article, "source_id", "")))
     if source is not None and bool(getattr(source, "official", False)):
         return True
-    first_host = _host(getattr(article, "url", ""))
+    first_host = _host(getattr(article, "origin_url", "") or getattr(article, "url", ""))
     first_source = str(getattr(article, "source_id", ""))
     if not first_host:
         return False
     for other in articles:
         if other is article or str(getattr(other, "source_id", "")) == first_source:
             continue
-        second_host = _host(getattr(other, "url", ""))
+        second_host = _host(getattr(other, "origin_url", "") or getattr(other, "url", ""))
         if second_host and second_host != first_host and _matching_headline(article, other):
             return True
     return False
