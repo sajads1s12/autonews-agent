@@ -263,9 +263,6 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
     log.info("─" * 26 + " 1/5 سحب المحتوى " + "─" * 26)
     articles, failed_sources = fetch_all_with_status(settings)
     report.articles_fetched = len(articles)
-    from .facts import has_independent_reports
-    source_index = {source.id: source for source in settings.sources}
-    articles = [article for article in articles if has_independent_reports(article, articles, source_index)]
 
     # 🌐 تعريب المصادر الأجنبية (قبل التصفية حتى تدخل عربية)
     if settings.translation.enabled and engine is not None:
@@ -288,6 +285,10 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
         report.translations = done
         if done:
             report.add(f"🌐 عُرّب {done} خبراً أجنبياً")
+
+    from .facts import has_independent_reports
+    source_index = {source.id: source for source in settings.sources}
+    articles = [article for article in articles if has_independent_reports(article, articles, source_index)]
 
     # صحة المصادر: تعطيل تلقائي للمصدر الذي يتكرّر فشله
     active_sources = []
