@@ -532,7 +532,9 @@ def apply_to_channel(channel_id: str, name: str, *, description: str = "", confi
     if not path.exists():
         return False, f"لم أجد {path}"
 
-    profile = detect_custom_profile(name, description) if description.strip() else detect(name)
+    profile = detect(name, description)
+    if description.strip() and (profile is None or profile.key.startswith("custom_")):
+        profile = detect_custom_profile(name, description)
     if profile is None:
         return False, ("🤷 لم أتعرّف على القطاع من الاسم — ستبقى القناة تستقبل "
                        "كل الأخبار (وهذا آمن). يمكنك ضبط الوسوم يدوياً.")
