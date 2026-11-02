@@ -629,6 +629,24 @@ def set_sector(channel_id: str, sector_key: str, *,
 
     profile = SECTORS.get(sector_key)
     if profile is None:
+        from pathlib import Path
+        import yaml
+        path = Path(config_dir) / "channels.yml"
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else {}
+        for item in (data or {}).get("channels") or []:
+            tags = {str(tag).lower() for tag in (item.get("tags") or [])}
+            name = str(item.get("name") or "")
+            description = str(item.get("description") or "")
+            if "أنمي" in tags and "مانغا" in tags:
+                candidate = detect("anime and manga")
+            elif any(tag.startswith("custom_") for tag in tags):
+                candidate = detect_custom_profile(name, description)
+            else:
+                candidate = detect(name, description)
+            if candidate is not None and candidate.key == sector_key:
+                profile = candidate
+                break
+    if profile is None:
         return False, f"❌ قطاع غير معروف: {sector_key}"
 
     current = sector_of(channel_id, config_dir=config_dir)
