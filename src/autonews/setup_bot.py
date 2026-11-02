@@ -429,7 +429,13 @@ class SetupBot:
                  store: SetupStore | None = None) -> None:
         self.cfg = config
         self.store = store or SetupStore.load(config.setup_file)
-        self.known = known_channels if known_channels is not None else list(CHANNEL_TITLES.keys())
+        self.known = known_channels if known_channels is not None else []
+        if known_channels is None:
+            try:
+                from .channels_main import load_channels
+                self.known = [str(ch.get("id")) for ch in load_channels("config") if ch.get("id")]
+            except Exception:
+                self.known = list(CHANNEL_TITLES.keys())
         self.me = bot_info(config.token) or {}
         self._offset_file = self.store.path.with_name("setup_bot_offset.txt")
 
