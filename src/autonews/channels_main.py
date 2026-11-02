@@ -93,33 +93,26 @@ def render_table(channels: list[dict[str, Any]], *, checks: dict[str, Any] | Non
 
 
 def render_matrix(channels: list[dict[str, Any]]) -> str:
-    """أي قطاع يذهب إلى أي قناة؟ (كشف التداخل والفراغات)"""
-    lines = ["🗺 مصفوفة التوجيه: أي وسم → أي قناة", "─" * 62]
-    for sector, tags in KNOWN_SECTORS.items():
-        hits = []
-        sector_tags = {t.lower() for t in tags}
-        for ch in channels:
-            if not ch.get("enabled"):
-                continue
-            ch_tags = {t.lower() for t in (ch.get("tags") or [])}
-            excl = {t.lower() for t in (ch.get("exclude_tags") or [])}
-            # 🚫 الاستثناء يغلب العموم (وإلّا صار الجدول مضلّلاً)
-            if sector_tags and sector_tags & excl:
-                continue
-            if not ch_tags:
-                hits.append(f"{ch['id']} (كل شيء)")
-            elif ch_tags & sector_tags:
-                hits.append(ch["id"])
-        mark = "✅" if hits else "⚠️ لا قناة"
-        lines.append(f"{sector:14} → {mark} {('، '.join(hits) or '—')}")
-
-    # تحذير مهم: قناة عامة تبتلع كل شيء
-    general = [c["id"] for c in channels
-               if c.get("enabled") and not (c.get("tags") or [])
-               and not (c.get("exclude_tags") or [])]
+    """مصفوفة ديناميكية للقنوات الفعلية؛ لا تعتمد على قائمة قطاعات ثابتة."""
+    lines = ["🗺 اختصاصات القنوات ومصادرها", "─" * 62]
+    enabled = [ch for ch in channels if ch.get("enabled")]
+    for ch in enabled:
+        name = str(ch.get("name") or ch.get("id") or "قناة")
+        cid = str(ch.get("id") or "")
+        description = str(ch.get("description") or "").strip()
+        tags = [str(tag) for tag in (ch.get("tags") or [])]
+        sources = [str(source) for source in (ch.get("sources") or [])]
+        scope = "كل المصادر" if "*" in sources else (
+            f"{len(sources)} مصدر" if sources else "لا مصادر — متوقفة بأمان"
+        )
+        topic = description or (", ".join(tags) if tags else "عام")
+        lines.append(f"• {name} ({cid})")
+        lines.append(f"  الاختصاص: {topic[:90]}")
+        lines.append(f"  التوجيه: {scope}")
+    general = [str(ch.get("id")) for ch in enabled
+               if "*" in (ch.get("sources") or []) and not (ch.get("tags") or [])]
     if general:
-        lines += ["", f"⚠️ قنوات عامة (تستقبل كل شيء): {'، '.join(general)}",
-                  "   نصيحة: إن أردت فصلاً كاملاً للقطاعات، أضف لها وسوماً صريحة."]
+        lines += ["", "ℹ️ قنوات عامة: " + "، ".join(general)]
     return "\n".join(lines)
 
 
