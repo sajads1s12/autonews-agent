@@ -635,30 +635,44 @@ def _attach_queries() -> None:
 _attach_queries()
 
 
-def gnews_url(query: str) -> str:
-    """رابط Google News RSS عربي جاهز."""
+def gnews_url(query: str, language: str = "ar") -> str:
+    """Google News RSS بلغة البحث المطلوبة؛ المحتوى يُترجم لاحقاً للعربية."""
     from urllib.parse import quote
 
-    return f"https://news.google.com/rss/search?q={quote(query)}&hl=ar&gl=IQ&ceid=IQ:ar"
+    locales = {
+        "ar": ("ar", "IQ", "IQ:ar"),
+        "en": ("en-US", "US", "US:en"),
+        "ja": ("ja", "JP", "JP:ja"),
+    }
+    hl, gl, ceid = locales.get(language, locales["en"])
+    return f"https://news.google.com/rss/search?q={quote(query)}&hl={hl}&gl={gl}&ceid={ceid}"
 
 
 def suggest_sources(sector: SectorProfile, *,
                     existing: Iterable[dict] | None = None) -> list[dict]:
-    """مصادر جاهزة لقطاع لا يوجد له مصدر (لإضافتها بأمر واحد).
-
-    يعيد قائمة إعدادات جاهزة لـ settings.yml، متجاهلاً ما هو موجود فعلاً.
-    """
-    have = {str(s.get("id")) for s in (existing or [])}
+    """توليد مصادر بحث متعددة اللغات مع وسم خاص يمنع تسرّبها لقنوات أخرى."""
+    have = {str(item.get("id")) for item in (existing or [])}
     out: list[dict] = []
-    for query in sector.queries:
-        slug = re.sub(r"[^a-z0-9]+", "_", query.split(" when")[0].lower())
-        # معرّف لاتيني قصير من الاستعلام العربي
-        sid = f"gnews_{sector.key}_{len(out) + 1}"
-        if sid in have:
-            continue
-        out.append({"id": sid, "name": f"{sector.label} — {query.split(' when')[0]}",
-                    "url": gnews_url(query), "type": "rss", "enabled": True,
-                    "tags": list(sector.tags) or ["أخبار"], "max_items": 8})
+    languages = ["ar", "en"]
+    if any(token in sector.key for token in ("anime", "manga", "manhwa")) or any(
+            token in clean_name(sector.label) for token in ("انمي", "مانغا", "مانهوا", "مانجا")):
+        languages.append("ja")
+    tags = list(sector.tags) or ["أخبار"]
+    for query_index, query in enumerate(sector.queries, 1):
+        for language in languages:
+            sid = f"gnews_{sector.key}_{query_index}_{language}"
+            if sid in have:
+                continue
+            out.append({
+                "id": sid,
+                "name": f"{sector.label} — {language.upper()}",
+                "url": gnews_url(query, language),
+                "type": "rss",
+                "enabled": True,
+                "languages": [language],
+                "tags": tags,
+                "max_items": 8,
+            })
     return out
 
 
