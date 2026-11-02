@@ -310,6 +310,12 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
         if state.has_article(art.fp, retry_failed_after_runs=settings.retry_failed_after_runs):
             report.articles_skipped += 1
             continue
+        # منع إعادة نشر الخبر من نفس الرابط حتى لو تغيّرت معاملات UTM.
+        if state.was_recently_published(art.url, art.title):
+            log.info("🔗 رابط خبر منشور مسبقاً — تجاهل: %s", truncate(art.title, 60))
+            state.mark(art.fp, "skipped", reason="duplicate:canonical_url")
+            report.articles_skipped += 1
+            continue
         # 🎬 الأنمي: الإعلان خبر بذاته — لا يمرّ على بوّابة «حدث بلا نتائج»
         is_anime_item = False
         if settings.verticals.anime.enabled:
