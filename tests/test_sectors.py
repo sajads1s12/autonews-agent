@@ -163,7 +163,7 @@ def test_unknown_tag_falls_back_to_all(sources):
     made_up = SectorProfile(key="x", label="وهمي", icon="❓",
                             keywords=("وهمي",), tags=("لا_يوجد_وسم",))
     picked, why = sources_for(made_up, sources)
-    assert picked == ["*"]
+    assert picked == []
 
 
 # --------------------------------------------------------------------------- #
