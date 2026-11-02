@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from autonews.facts import has_independent_reports
 from autonews.sectors import detect, detect_custom_profile, suggest_sources, sources_for
+from autonews.ingest.rss import _parse_with_etree
 
 
 def article(source_id, url, title):
@@ -50,6 +51,20 @@ class IndependentReportTests(unittest.TestCase):
         sources = {"official": SimpleNamespace(official=True)}
         self.assertTrue(has_independent_reports(first, [first], sources))
 
+
+
+
+class RssPublisherMetadataTests(unittest.TestCase):
+    def test_extracts_original_publisher_from_google_news_style_rss(self):
+        feed = b"""<rss version="2.0"><channel><item>
+        <title>Studio announces a new series</title>
+        <link>https://news.google.com/rss/articles/example</link>
+        <description>Announcement details</description>
+        <source url="https://publisher.example">Publisher</source>
+        </item></channel></rss>"""
+        item = _parse_with_etree(feed)[0]
+        self.assertEqual(item["origin_url"], "https://publisher.example")
+        self.assertEqual(item["origin_name"], "Publisher")
 
 
 class DynamicTopicTests(unittest.TestCase):
