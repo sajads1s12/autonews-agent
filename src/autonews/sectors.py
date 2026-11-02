@@ -327,6 +327,12 @@ def detect(name: str, username: str = "") -> SectorProfile | None:
     عند التعادل نرجّح الأعلى `priority` — أي الأخصّ («أنمي» تتقدّم على «أخبار»).
     """
     scores = score(name, username)
+    if "anime" in scores and "manga" in scores:
+        a, m = SECTORS["anime"], SECTORS["manga"]
+        return SectorProfile(key="anime_manga", label="أنمي ومانغا", icon="🎌",
+            keywords=a.keywords + m.keywords, tags=a.tags + m.tags,
+            style="أخبار أنمي ومانغا مع ذكر الحلقة أو الفصل وموعده.",
+            priority=37, queries=a.queries + m.queries)
     if not scores:
         # اختصاص مخصّص لأي اسم جديد: لا نفرض قائمة قطاعات ثابتة.
         # نستخدم كلمات الاسم نفسها كاستعلام بحث، وننشئ وسماً خاصاً به
