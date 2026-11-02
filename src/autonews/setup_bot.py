@@ -1300,12 +1300,17 @@ class SetupBot:
         extra = ""
         profile = detect(name)
         if profile is not None:
-            apply_to_channel(cid, name, config_dir=self.config_dir, override=True)
+            # أنشئ مصادر الموضوع أولاً، ثم اربط القناة بها؛ عكس الترتيب
+            # كان يترك القناة على ["*"] فتستقبل كل الأخبار رغم اكتشاف اختصاصها.
+            note = ensure_sources(profile, config_dir=self.config_dir)
+            ok_apply, apply_msg = apply_to_channel(
+                cid, name, config_dir=self.config_dir, override=True)
             extra = (f"\n🎯 الاختصاص: <b>{profile.icon} {profile.label}</b>"
                      f"\n🏷 الوسوم: {', '.join(profile.tags) or '—'}")
-            note = ensure_sources(profile, config_dir=self.config_dir)
             if note:
                 extra += f"\n{note}"
+            if not ok_apply:
+                extra += f"\n⚠️ تعذّر ربط المصادر: {apply_msg}"
             if not profile.tags:                    # قطاع عام
                 extra += ("\n📡 المصادر: <b>كل المصادر (الرمز *)</b> — "
                           "أي مصدر تضيفه لاحقاً يصلها تلقائياً.")
