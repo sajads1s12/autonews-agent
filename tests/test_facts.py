@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from autonews.facts import has_independent_reports
+from autonews.sectors import detect, detect_custom_profile, suggest_sources, sources_for
 
 
 def article(source_id, url, title):
@@ -48,6 +49,36 @@ class IndependentReportTests(unittest.TestCase):
         first = article("official", "https://agency.example/report/1", "Official statement released")
         sources = {"official": SimpleNamespace(official=True)}
         self.assertTrue(has_independent_reports(first, [first], sources))
+
+
+
+class DynamicTopicTests(unittest.TestCase):
+    def test_mixed_anime_and_manga(self):
+        profile = detect("anime and manga")
+        self.assertEqual(profile.key, "anime_manga")
+        self.assertIn("أنمي", profile.tags)
+        self.assertIn("مانغا", profile.tags)
+
+    def test_manhwa_is_separate(self):
+        self.assertEqual(detect("مانهوا وويب تون").key, "manhwa")
+
+    def test_custom_description_creates_scoped_feeds(self):
+        profile = detect_custom_profile("My channel", "Roblox updates and patch announcements")
+        self.assertTrue(profile.key.startswith("custom_"))
+        self.assertIn("Roblox", profile.queries[0])
+
+    def test_custom_anime_topic_adds_japanese_feeds(self):
+        profile = detect_custom_profile("new channel", "anime release schedules")
+        self.assertEqual({x["lang"] for x in suggest_sources(profile)}, {"ar", "en", "ja"})
+
+    def test_custom_manhwa_topic_adds_korean_feeds(self):
+        profile = detect_custom_profile("new channel", "manhwa chapter updates")
+        self.assertEqual({x["lang"] for x in suggest_sources(profile)}, {"ar", "en", "ko"})
+
+    def test_unmatched_topic_has_no_wildcard(self):
+        profile = detect_custom_profile("my channel", "rare xylophone astronomy")
+        ids, _reason = sources_for(profile, [{"id": "general", "tags": ["news"]}])
+        self.assertEqual(ids, [])
 
 
 if __name__ == "__main__":
