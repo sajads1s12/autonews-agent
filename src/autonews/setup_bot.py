@@ -429,7 +429,7 @@ class SetupBot:
                  store: SetupStore | None = None) -> None:
         self.cfg = config
         self.store = store or SetupStore.load(config.setup_file)
-        self.known = known_channels or list(CHANNEL_TITLES.keys())
+        self.known = known_channels if known_channels is not None else list(CHANNEL_TITLES.keys())
         self.me = bot_info(config.token) or {}
         self._offset_file = self.store.path.with_name("setup_bot_offset.txt")
 
