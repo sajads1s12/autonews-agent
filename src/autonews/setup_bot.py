@@ -251,9 +251,7 @@ def channel_control_keyboard(cid: str, c) -> list[list[dict]]:
                  {"text": "🌙 ساعات هدوء (23→6)", "callback_data": f"ctl:{cid}:quiet"})
     return [
         [pause_btn, quiet_btn],
-        [{"text": "🤖 مراجعة ذكية", "callback_data": f"rev:{cid}:smart"},
-         {"text": "👁 كل منشور", "callback_data": f"rev:{cid}:always"},
-         {"text": "🚀 بلا مراجعة", "callback_data": f"rev:{cid}:never"}],
+
         [{"text": "🖋 ضبط البصمة", "callback_data": f"brd:{cid}"},
          {"text": "↩️ لوحة التحكّم", "callback_data": "ctl"}],
     ]
