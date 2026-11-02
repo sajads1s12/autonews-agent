@@ -1210,8 +1210,12 @@ class SetupBot:
         profile = detect(title)
         # نُنشئ تعريف القناة إن لم تكن معروفة
         from .config_loader import load_config
-        existing = {c.id for c in load_config(self.config_dir).channels}
-        cid = f"tg_{_slug(title)}" if not name else f"tg_{_slug(name)}"
+        from .editor import suggest_channel_id
+        configured = load_config(self.config_dir).channels
+        matched = next((c for c in configured
+                        if str(c.name).strip().casefold() == title.strip().casefold()), None)
+        existing = {c.id for c in configured}
+        cid = matched.id if matched else suggest_channel_id(title, existing=existing)
         created = ""
         if cid not in existing:
             from .editor import add_channel
