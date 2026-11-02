@@ -79,13 +79,6 @@ class Post:
                 parts.append(f"🗞 {title}" if channel.add_emoji and not title.startswith("🔴") else title)
             if self.body:
                 parts.append(self.body)
-            if channel.platform == "facebook" and self.key_points:
-                bullets = "\n".join(f"✔ {p}" for p in self.key_points[:2])
-                parts.append(bullets)
-
-        if self.reader_value and channel.platform in ("telegram", "facebook"):
-            parts.append(f"💡 {self.reader_value}")
-
         if self.hashtags_line and channel.add_hashtags > 0:
             parts.append(self.hashtags_line)
         if channel.include_source_link and self.source_url:
