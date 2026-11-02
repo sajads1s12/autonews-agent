@@ -139,7 +139,7 @@ class State:
         import re
         def norm_title(value: str) -> str:
             value = (value or "").lower()
-            value = re.sub(r"https?://\\S+", " ", value)
+            value = re.sub(r"https?://\S+", " ", value)
             value = re.sub(r"[^\w\s]", " ", value, flags=re.UNICODE)
             return " ".join(value.split())
         current_title = norm_title(title)
