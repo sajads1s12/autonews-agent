@@ -607,7 +607,14 @@ def sector_of(channel_id: str, *, config_dir: str = "config") -> SectorProfile |
     description = str(channel.get("description") or "")
     if "أنمي" in tags and "مانغا" in tags:
         return detect("anime and manga")
-    if any(tag.startswith("custom_") for tag in tags):
+    custom_tag = next((tag for tag in tags if tag.startswith("custom_")), "")
+    if custom_tag:
+        for item in data.get("channels") or []:
+            item_tags = {str(tag).lower() for tag in (item.get("tags") or [])}
+            if custom_tag in item_tags:
+                return detect_custom_profile(
+                    str(item.get("name") or ""), str(item.get("description") or "")
+                )
         return detect_custom_profile(name, description)
     best: tuple[int, SectorProfile] | None = None
     for profile in SECTORS.values():
