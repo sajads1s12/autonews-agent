@@ -32,6 +32,18 @@ class IndependentReportTests(unittest.TestCase):
                    "feed_b": SimpleNamespace(official=False)}
         self.assertFalse(has_independent_reports(first, [first, second], sources))
 
+
+    def test_google_news_links_use_original_publisher_domains(self):
+        first = article("gnews_a", "https://news.google.com/rss/articles/a",
+                        "Studio announces a new animated series for 2027")
+        second = article("gnews_b", "https://news.google.com/rss/articles/b",
+                         "Studio announces a new animated series for 2027")
+        first.origin_url = "https://publisher-one.example"
+        second.origin_url = "https://publisher-two.example"
+        sources = {"gnews_a": SimpleNamespace(official=False),
+                   "gnews_b": SimpleNamespace(official=False)}
+        self.assertTrue(has_independent_reports(first, [first, second], sources))
+
     def test_official_source_can_stand_alone(self):
         first = article("official", "https://agency.example/report/1", "Official statement released")
         sources = {"official": SimpleNamespace(official=True)}
