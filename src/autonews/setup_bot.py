@@ -1296,7 +1296,8 @@ class SetupBot:
                     tags = list(chosen.tags)
                     cid = suggest_channel_id(name, existing=existing)
 
-        ok, msg = add_channel(cid, name=name, tags=tags, config_dir=self.config_dir)
+        ok, msg = add_channel(cid, name=name, description=description,
+                             tags=tags, config_dir=self.config_dir)
         self.store.clear_pending()
         if not ok:
             self.send(chat_id, msg.replace("<", "&lt;"),
@@ -1314,7 +1315,8 @@ class SetupBot:
             # كان يترك القناة على ["*"] فتستقبل كل الأخبار رغم اكتشاف اختصاصها.
             note = ensure_sources(profile, config_dir=self.config_dir)
             ok_apply, apply_msg = apply_to_channel(
-                cid, name, config_dir=self.config_dir, override=True)
+                cid, name, description=description,
+                config_dir=self.config_dir, override=True)
             extra = (f"\n🎯 الاختصاص: <b>{profile.icon} {profile.label}</b>"
                      f"\n🏷 الوسوم: {', '.join(profile.tags) or '—'}")
             if note:
