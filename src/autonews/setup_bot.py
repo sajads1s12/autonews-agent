@@ -1294,8 +1294,9 @@ class SetupBot:
                     tags = list(chosen.tags)
                     cid = suggest_channel_id(name, existing=existing)
 
-        profile = (detect_custom_profile(name, description)
-                   if description.strip() else detect(name))
+        profile = detect(name, description)
+        if description.strip() and (profile is None or profile.key.startswith("custom_")):
+            profile = detect_custom_profile(name, description)
         if not tags and profile is not None:
             tags = list(profile.tags)
         ok, msg = add_channel(cid, name=name, description=description,
