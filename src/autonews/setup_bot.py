@@ -467,6 +467,9 @@ class SetupBot:
         if "callback_query" in upd:
             self._on_callback(upd["callback_query"])
             return
+        if "my_chat_member" in upd:
+            self._on_my_chat_member(upd["my_chat_member"])
+            return
         msg = upd.get("message") or {}
         chat = msg.get("chat") or {}
         text = (msg.get("text") or "").strip()
