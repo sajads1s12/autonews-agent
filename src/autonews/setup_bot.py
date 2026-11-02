@@ -479,6 +479,67 @@ class SetupBot:
             return
         self._on_text(chat_id, text)
 
+    def _on_my_chat_member(self, event: dict) -> None:
+        """اكتشاف تلقائي للقناة عند ترقية البوت إلى مشرف."""
+        chat = event.get("chat") or {}
+        actor = int((event.get("from") or {}).get("id", 0) or 0)
+        new_member = event.get("new_chat_member") or {}
+        old_member = event.get("old_chat_member") or {}
+        status = str(new_member.get("status") or "")
+        chat_type = str(chat.get("type") or "")
+        if chat_type != "channel" or status != "administrator":
+            return
+        notify_to = self.cfg.admin_chat_id or actor
+        if not actor or not self._allowed(actor, notify_to):
+            log.warning("رفض اكتشاف قناة تلقائي: المستخدم غير مخوّل")
+            return
+
+        from .channels_main import load_channels
+        from .config_loader import load_config
+        from .editor import add_channel, suggest_channel_id
+        from .sectors import apply_to_channel, detect, ensure_sources
+
+        info = check_chat(self.cfg.token, str(chat.get("id") or ""))
+        if not info.ok():
+            log.warning("تعذّر التحقق من القناة المضافة: %s", info.error)
+            return
+        title = str(info.title or chat.get("title") or "قناة جديدة")
+        configured = load_config(self.config_dir).channels
+        matched = next((item for item in configured
+                        if str(item.name).strip().casefold() == title.strip().casefold()
+                        and (not self.store.get(item.id).chat_id
+                             or self.store.get(item.id).chat_id == str(info.id))), None)
+        existing = {item.id for item in configured}
+        cid = matched.id if matched else suggest_channel_id(title, existing=existing)
+        profile = detect(title)
+        if matched is None:
+            ok, message = add_channel(
+                cid, name=title, tags=list(profile.tags) if profile else [],
+                config_dir=self.config_dir,
+            )
+            if not ok:
+                log.warning("تعذّر إنشاء قناة مكتشفة تلقائياً: %s", message)
+                return
+        if profile is not None:
+            ensure_sources(profile, config_dir=self.config_dir)
+            apply_to_channel(cid, title, config_dir=self.config_dir, override=True)
+
+        binding = self.store.get(cid)
+        binding.set_ok(str(info.id), title=info.title, username=info.username,
+                       chat_type=info.type, is_admin=True)
+        self.store.save()
+        if cid not in self.known:
+            self.known.append(cid)
+        self.send(
+            notify_to,
+            "✅ <b>اكتشفت القناة وربطتها تلقائياً</b>\n"
+            f"القناة: <b>{html.escape(title)}</b>\n"
+            f"الاختصاص: <b>{html.escape(profile.label if profile else 'غير محدد')}</b>\n"
+            "تم إنشاء مصادرها وربطها. لن يصلها خبر خارج اختصاصها.",
+            keyboard=[[{"text": "📋 القنوات وإدارتها", "callback_data": "chs"}]],
+        )
+        log.info("اكتشاف تلقائي: %s ← %s (%s)", cid, info.id, title)
+
     def _on_text(self, chat_id: str | int, text: str) -> None:
         low = text.lower()
         early = self.store.pending_task()
