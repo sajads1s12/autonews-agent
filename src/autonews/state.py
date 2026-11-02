@@ -113,6 +113,34 @@ class State:
         if len(self.posted) > MAX_POSTED_HISTORY:
             self.posted = self.posted[-MAX_POSTED_HISTORY:]
 
+    @staticmethod
+    def _canonical_news_url(value: str) -> str:
+        """توحيد رابط الخبر وحذف معاملات التتبع حتى لا يتكرر بسبب UTM."""
+        from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+        try:
+            parts = urlsplit((value or "").strip())
+            if not parts.scheme or not parts.netloc:
+                return (value or "").strip().rstrip("/")
+            tracking = {"utm_source", "utm_medium", "utm_campaign", "utm_content",
+                        "utm_term", "fbclid", "gclid", "mc_cid", "mc_eid"}
+            query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
+                     if k.lower() not in tracking]
+            return urlunsplit((parts.scheme.lower(), parts.netloc.lower(),
+                               parts.path.rstrip("/"), urlencode(query), ""))
+        except Exception:
+            return (value or "").strip().rstrip("/")
+
+    def was_recently_published(self, url: str, title: str, *, lookback: int = 500) -> bool:
+        """منع إعادة نشر رابط الخبر نفسه حتى لو اختلفت معاملات التتبع."""
+        canonical = self._canonical_news_url(url)
+        if not canonical:
+            return False
+        for item in self.posted[-lookback:]:
+            old_url = self._canonical_news_url(str(item.get("url", "")))
+            if old_url and old_url == canonical:
+                return True
+        return False
+
     def was_posted_to(self, channel_id: str, article_fp: str) -> bool:
         return any(
             p["channel"] == channel_id and p["article_fp"] == article_fp
