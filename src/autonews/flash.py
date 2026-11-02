@@ -478,6 +478,10 @@ class FlashLane:
 
             if self.state.has_article(art.fp) or self.state.was_flashed(art.fp):
                 continue
+            if self.state.was_recently_published(art.url, art.title):
+                log.info("🔗 عاجل مكرر — سبق نشر الرابط/العنوان: %s", art.title[:65])
+                result.skipped += 1
+                continue
 
             verdict = classify(art, self.flash, breaking=self.settings.breaking)
             if not verdict.urgent:
