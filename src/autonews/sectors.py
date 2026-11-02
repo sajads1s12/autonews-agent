@@ -308,17 +308,19 @@ def score(name: str, username: str = "") -> dict[str, int]:
 def detect_custom_profile(name: str, description: str = "") -> SectorProfile | None:
     """ملف اختصاص مستقل للقنوات ذات المواضيع غير المدرجة في القطاعات العامة."""
     from hashlib import sha1
-    clean = clean_name(f"{name} {description}")
-    words = [w for w in clean.split() if w not in _NOISE and len(w) > 1]
+    name_clean = clean_name(name)
+    topic_clean = clean_name(description) if description.strip() else name_clean
+    words = [w for w in topic_clean.split() if w not in _NOISE and len(w) > 1]
     if not words:
         return None
-    label = " ".join(words[:6])
-    slug = sha1(label.encode("utf-8")).hexdigest()[:8]
+    label = " ".join(name_clean.split()[:6]) or " ".join(words[:6])
+    query_text = " ".join(words[:8])
+    slug = sha1(f"{name_clean}|{topic_clean}".encode("utf-8")).hexdigest()[:8]
     return SectorProfile(
         key=f"custom_{slug}", label=label, icon="🧭", keywords=tuple(words),
         tags=(f"custom_{slug}",),
         style="قناة متخصصة: انشر فقط ما يرتبط مباشرة بموضوع القناة، مع ترجمة عربية ورابط مصدر.",
-        priority=5, queries=(f'"{label}" when:2d', f"{label} إعلان OR إصدار when:7d"),
+        priority=5, queries=(f'"{query_text}" when:2d', f"{query_text} إعلان OR إصدار when:7d"),
     )
 
 def detect(name: str, username: str = "") -> SectorProfile | None:
