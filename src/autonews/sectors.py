@@ -813,9 +813,15 @@ def catalog(config_dir: str = "config") -> list[dict]:
             name = str(channel.get("name") or "")
             description = str(channel.get("description") or "")
             channel_tags = {str(tag).lower() for tag in (channel.get("tags") or [])}
-            profile = (detect_custom_profile(name, description)
-                       if any(tag.startswith("custom_") for tag in channel_tags)
-                       else detect(name, description))
+            custom_tag = next((tag for tag in channel_tags if tag.startswith("custom_")), "")
+            if custom_tag:
+                owner = next((candidate for candidate in data.get("channels") or []
+                              if custom_tag in {str(tag).lower() for tag in (candidate.get("tags") or [])}), channel)
+                profile = detect_custom_profile(
+                    str(owner.get("name") or ""), str(owner.get("description") or "")
+                )
+            else:
+                profile = detect(name, description)
             if profile is not None:
                 profiles.setdefault(profile.key, profile)
     out = []
