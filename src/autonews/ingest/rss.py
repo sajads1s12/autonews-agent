@@ -91,6 +91,8 @@ def _parse_with_feedparser(raw: bytes) -> list[dict] | None:
             "published_parsed": e.get("published_parsed") or e.get("updated_parsed"),
             "tags": [t.get("term", "") for t in (e.get("tags") or []) if isinstance(t, dict)],
             "image": _extract_fp_image(e),
+            "origin_url": (e.get("source") or {}).get("href", "") if isinstance(e.get("source"), dict) else "",
+            "origin_name": (e.get("source") or {}).get("title", "") if isinstance(e.get("source"), dict) else "",
         })
     return entries
 
