@@ -79,11 +79,8 @@ class Post:
                 parts.append(f"🗞 {title}" if channel.add_emoji and not title.startswith("🔴") else title)
             if self.body:
                 parts.append(self.body)
-            if channel.platform == "telegram" and self.key_points:
-                bullets = "\n".join(f"• {p}" for p in self.key_points[:4])
-                parts.append(f"📌 أبرز النقاط:\n{bullets}")
-            elif channel.platform == "facebook" and self.key_points:
-                bullets = "\n".join(f"✔ {p}" for p in self.key_points[:3])
+            if channel.platform == "facebook" and self.key_points:
+                bullets = "\n".join(f"✔ {p}" for p in self.key_points[:2])
                 parts.append(bullets)
 
         if self.reader_value and channel.platform in ("telegram", "facebook"):
@@ -93,7 +90,7 @@ class Post:
             parts.append(self.hashtags_line)
         if channel.include_source_link and self.source_url:
             label = self.source_name or "المصدر"
-            parts.append(f"🔗 المصدر: {label}\n{self.source_url}")
+            parts.append(f"🔗 اقرأ الخبر كاملاً لدى {label}:\n{self.source_url}")
         sig = _signature(channel)
         if sig:
             parts.append(sig)
