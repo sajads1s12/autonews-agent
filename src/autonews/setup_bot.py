@@ -1269,10 +1269,18 @@ class SetupBot:
         description = ""
         # الصيغة القديمة (معرّف | اسم | وسوم) تبقى مدعومة.
         if "|" in raw:
-            parts = [p.strip() for p in raw.replace("،", ",").split("|")]
-            cid = parts[0] if parts else ""
-            name = parts[1] if len(parts) > 1 else cid
-            tags = [t.strip() for t in (parts[2] if len(parts) > 2 else "").split(",") if t.strip()]
+            parts = [p.strip() for p in raw.split("|")]
+            first = parts[0] if parts else ""
+            if first.startswith("tg_") or first.startswith("-100"):
+                cid = first
+                name = parts[1] if len(parts) > 1 else cid
+                tags = [t.strip() for t in (parts[2] if len(parts) > 2 else "").split(",") if t.strip()]
+            else:
+                name = first
+                description = parts[1] if len(parts) > 1 else ""
+                tags = []
+                existing = {str(c.get("id")) for c in load_channels(self.config_dir)}
+                cid = suggest_channel_id(f"{name} {description}", existing=existing)
         else:
             # 🎯 المسار الذكي: الاسم (+ الوصف) فقط
             name = raw.strip()
