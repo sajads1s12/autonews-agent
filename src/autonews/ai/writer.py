@@ -83,7 +83,7 @@ class Post:
             parts.append(self.hashtags_line)
         if channel.include_source_link and self.source_url:
             label = self.source_name or "المصدر"
-            parts.append(f"🔗 اقرأ الخبر كاملاً لدى {label}:\n{self.source_url}")
+            parts.append(f"🔗 المصدر: اقرأ الخبر كاملاً لدى {label}:\n{self.source_url}")
         sig = _signature(channel)
         if sig:
             parts.append(sig)
