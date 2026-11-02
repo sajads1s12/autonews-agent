@@ -492,7 +492,7 @@ def suggest_channel_id(name: str, *, existing: set[str] | None = None) -> str:
     return f"{base}_{i}"
 
 
-def add_channel(channel_id: str, *, name: str = "", tags: list[str] | None = None,
+def add_channel(channel_id: str, *, name: str = "", description: str = "", tags: list[str] | None = None,
                 sector: str = "", config_dir: str = "config") -> tuple[bool, str]:
     """إضافة قناة تيليجرام كاملة (بصمة + سرّ + وسوم) معطّلة الأمان لا مطلوب."""
     path = Path(config_dir) / "channels.yml"
