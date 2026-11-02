@@ -1226,7 +1226,7 @@ class SetupBot:
             from .editor import add_channel
 
             ok_new, msg_new = add_channel(
-                cid, name=title, tags=list(profile.tags) if profile else [],
+                cid, name=title, description=description, tags=list(profile.tags) if profile else [],
                 config_dir=self.config_dir)
             if ok_new:
                 created = f"\n🆕 أُنشئت قناة جديدة: <code>{cid}</code>"
