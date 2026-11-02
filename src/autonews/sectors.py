@@ -554,8 +554,10 @@ def apply_to_channel(channel_id: str, name: str, *, description: str = "", confi
 
     picked, why = sources_for(profile, _load_sources(config_dir))
     res_s = update_channel_sources(channel_id, picked, config_dir=config_dir)
-    res_t = update_channel_tags(channel_id, add=list(profile.tags),
-                                config_dir=config_dir) if profile.tags else None
+    current_tags = _read_channel_tags(path, channel_id)
+    remove_tags = [tag for tag in current_tags if tag not in profile.tags] if override else []
+    res_t = update_channel_tags(channel_id, add=list(profile.tags), remove=remove_tags,
+                                config_dir=config_dir) if profile.tags or remove_tags else None
 
     if not res_s.ok or (res_t is not None and not res_t.ok):
         return False, f"تعذّر الحفظ: {res_s.message if not res_s.ok else res_t.message}"
