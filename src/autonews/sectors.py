@@ -417,11 +417,9 @@ def sources_for(sector: SectorProfile,
     best = scored[0][0]
     chosen = [src for value, src in scored if value >= best * 0.6]
 
-    ar = [src for src in chosen if "ar" in _source_langs(src)]
-    if len(ar) >= 2:                          # عربي كافٍ: لا حاجة للإنجليزي
-        chosen = ar
-    else:                                     # نقدّم العربي ونُبقي الباقي
-        chosen.sort(key=lambda src: "ar" not in _source_langs(src))
+    # نعطي العربي أولوية في الترتيب، لكن لا نحذف المصادر الأجنبية؛
+    # فهي التي تحمل إعلانات الاستوديوهات والفصول والمواعيد الأصلية.
+    chosen.sort(key=lambda src: "ar" not in _source_langs(src))
 
     return ([str(src["id"]) for src in chosen],
             f"{len(chosen)} مصدراً بهذه الوسوم")
