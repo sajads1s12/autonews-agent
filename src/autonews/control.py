@@ -405,8 +405,6 @@ def decide(*, mode: str, post: Any, score: float = 1.0,
            breaking: bool = False) -> tuple[str, list[str]]:
     """المحتوى المشكوك به يُرفض ولا يتحوّل إلى طابور موافقات."""
     why = review_reasons(post, score=score, reasons=reasons, min_score=min_score)
-    if mode == REVIEW_ALWAYS:
-        return "review", ["كل منشور يحتاج موافقة (إعداد قديم)", *why]
     if why:
         return "discard", why
     return "publish", []
