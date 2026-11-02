@@ -182,6 +182,8 @@ def _parse_with_etree(raw: bytes) -> list[dict]:
             "published": _text(item, "pubDate", f"{DC_NS}date"),
             "tags": [c.text.strip() for c in item.findall("category") if c.text],
             "image": image,
+            "origin_url": item.find("source").get("url", "") if item.find("source") is not None else "",
+            "origin_name": _text(item, "source"),
         })
     for entry in root.iter(f"{ATOM_NS}entry"):   # Atom
         link = ""
