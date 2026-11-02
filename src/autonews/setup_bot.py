@@ -495,7 +495,7 @@ class SetupBot:
         if chat_type != "channel" or status != "administrator":
             return
         notify_to = self.cfg.admin_chat_id or actor
-        if not actor or (self.cfg.allowed_users and actor not in self.cfg.allowed_users):
+        if not actor or not self._allowed(actor, actor):
             log.warning("رفض اكتشاف قناة تلقائي: المستخدم غير مخوّل")
             return
 
