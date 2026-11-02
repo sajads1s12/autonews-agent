@@ -814,7 +814,9 @@ def catalog(config_dir: str = "config") -> list[dict]:
             description = str(channel.get("description") or "")
             channel_tags = {str(tag).lower() for tag in (channel.get("tags") or [])}
             custom_tag = next((tag for tag in channel_tags if tag.startswith("custom_")), "")
-            if custom_tag:
+            if "أنمي" in channel_tags and "مانغا" in channel_tags:
+                profile = detect("anime and manga")
+            elif custom_tag:
                 owner = next((candidate for candidate in data.get("channels") or []
                               if custom_tag in {str(tag).lower() for tag in (candidate.get("tags") or [])}), channel)
                 profile = detect_custom_profile(
