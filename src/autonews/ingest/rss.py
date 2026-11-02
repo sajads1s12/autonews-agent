@@ -322,6 +322,8 @@ def fetch_source(source: Source, settings: Settings, *, fetcher: Fetcher | None 
             content=truncate(content, 3000),
             image_url=str(entry.get("image") or ""),
         )
+        if source.tags:
+            art.tags = list(dict.fromkeys(art.tags + list(source.tags)))[:12]
         if art.fp in seen:
             continue
         seen.add(art.fp)
