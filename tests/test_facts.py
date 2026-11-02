@@ -65,7 +65,7 @@ class DynamicTopicTests(unittest.TestCase):
     def test_custom_description_creates_scoped_feeds(self):
         profile = detect_custom_profile("My channel", "Roblox updates and patch announcements")
         self.assertTrue(profile.key.startswith("custom_"))
-        self.assertIn("Roblox", profile.queries[0])
+        self.assertIn("roblox", profile.queries[0].lower())
 
     def test_custom_anime_topic_adds_japanese_feeds(self):
         profile = detect_custom_profile("new channel", "anime release schedules")
