@@ -1266,7 +1266,8 @@ class SetupBot:
         task = self.store.pending_task() or {}
         sector_key = str(task.get("sector", "") or "")
 
-        # قبول الصيغة القديمة (معرّف | اسم | وسوم) ما دامت تعمل — لا حذف لميزة
+        description = ""
+        # الصيغة القديمة (معرّف | اسم | وسوم) تبقى مدعومة.
         if "|" in raw:
             parts = [p.strip() for p in raw.replace("،", ",").split("|")]
             cid = parts[0] if parts else ""
@@ -1275,7 +1276,7 @@ class SetupBot:
         else:
             # 🎯 المسار الذكي: الاسم (+ الوصف) فقط
             name = raw.strip()
-            profile = detect(name)
+            profile = detect(name, description)
             tags = list(profile.tags) if profile else []
             existing = {str(c.get("id")) for c in load_channels(self.config_dir)}
             cid = suggest_channel_id(name, existing=existing)
@@ -1299,7 +1300,7 @@ class SetupBot:
 
         # ضبط المصادر حسب الاختصاص (لا قناة صامتة) + ذكر ما جرى
         extra = ""
-        profile = detect(name)
+        profile = detect(name, description)
         if profile is not None:
             # أنشئ مصادر الموضوع أولاً، ثم اربط القناة بها؛ عكس الترتيب
             # كان يترك القناة على ["*"] فتستقبل كل الأخبار رغم اكتشاف اختصاصها.
