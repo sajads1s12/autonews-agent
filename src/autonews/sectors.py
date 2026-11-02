@@ -336,6 +336,8 @@ def detect_many(names: Iterable[str]) -> list[SectorProfile]:
 def _source_langs(src: dict) -> set[str]:
     """لغات المصدر المخمّنة: من حقل languages إن وُجد، وإلا من رابط Google News."""
     langs = {str(x).lower() for x in (src.get("languages") or [])}
+    if src.get("lang"):
+        langs.add(str(src.get("lang")).lower())
     if langs:
         return langs
     url = str(src.get("url", ""))
@@ -643,6 +645,7 @@ def gnews_url(query: str, language: str = "ar") -> str:
         "ar": ("ar", "IQ", "IQ:ar"),
         "en": ("en-US", "US", "US:en"),
         "ja": ("ja", "JP", "JP:ja"),
+        "ko": ("ko", "KR", "KR:ko"),
     }
     hl, gl, ceid = locales.get(language, locales["en"])
     return f"https://news.google.com/rss/search?q={quote(query)}&hl={hl}&gl={gl}&ceid={ceid}"
@@ -657,6 +660,8 @@ def suggest_sources(sector: SectorProfile, *,
     if any(token in sector.key for token in ("anime", "manga", "manhwa")) or any(
             token in clean_name(sector.label) for token in ("انمي", "مانغا", "مانهوا", "مانجا")):
         languages.append("ja")
+    if "مانهوا" in clean_name(sector.label) or "manhwa" in sector.key:
+        languages.append("ko")
     tags = list(sector.tags) or ["أخبار"]
     for query_index, query in enumerate(sector.queries, 1):
         for language in languages:
@@ -669,7 +674,7 @@ def suggest_sources(sector: SectorProfile, *,
                 "url": gnews_url(query, language),
                 "type": "rss",
                 "enabled": True,
-                "languages": [language],
+                "lang": language,
                 "tags": tags,
                 "max_items": 8,
             })
