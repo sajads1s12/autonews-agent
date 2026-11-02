@@ -436,6 +436,15 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
         action, why = decide(mode=mode, post=post, score=score, reasons=extra_reasons,
                              min_score=c.min_score or ctl.min_score, breaking=breaking)
 
+        # لا موافقات: المحتوى غير الموثوق يُستبعد نهائياً.
+        if action == "discard":
+            reason = "; ".join(why[:4]) or "فشل فحص الثقة والجودة"
+            log.warning("🗑 رُفض قبل النشر (%s): %s | %s",
+                        channel.name, truncate(post.title, 55), reason)
+            report.add(f"🗑 استُبعد ({channel.name}) — {truncate(post.title, 65)}")
+            state.mark(art.fp, "skipped", reason=f"trust_gate:{reason[:140]}")
+            return "discard"
+
         # (١) ساعات الهدوء — تُؤجّل (إلّا العاجل)
         hour = local_hour(tz_offset)
         if not (breaking and ctl.breaking_bypass_quiet):
@@ -490,13 +499,7 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
     def dispatch(post, channel: Channel, art: Article, *, breaking: bool) -> PublishResult:
         """نشر أو تحويل لمسوّدة، مع تطبيق كل السياسات."""
         nonlocal published_any, breaking_used
-        # (أ) المراجعة البشرية التقليدية (review.enabled)
-        if channel.review_required and settings.review.enabled:
-            rid = reviewer.request_review(post, channel.name)
-            report.add(f"📝 مسوّدة للمراجعة · {channel.name} — {truncate(post.title, 80)} (`{rid}`)")
-            state.mark(art.fp, "review", title=truncate(art.title, 120))
-            return PublishResult(True, channel.id, channel.platform, ref=f"review:{rid}")
-
+        # لا ننشئ مسودات موافقة يدوية؛ القرار مرّ مسبقاً عبر بوابة النشر.
         # (ب) الصورة — من الرابط الأصلي قبل إضافة وسوم الحملة
         image = None
         if channel.with_image and settings.images.enabled:
