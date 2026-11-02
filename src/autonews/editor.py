@@ -440,6 +440,7 @@ CHANNEL_TEMPLATE = """
   # ---- 🆕 أُضيفت من البوت: {stamp}
   - id: {cid}
     name: "{name}"
+    description: "{description}"
     platform: telegram
     enabled: true
     sources: []
