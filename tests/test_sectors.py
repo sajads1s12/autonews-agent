@@ -151,10 +151,10 @@ def test_every_sector_has_at_least_one_source(sources):
             assert len(picked) >= 1
 
 
-def test_no_sources_means_publish_everything():
-    """الأمان: بلا مصادر لا نصمت — ننشر كل شيء."""
+def test_specialized_topic_without_sources_stays_isolated():
+    """القناة المتخصصة لا تتحول إلى قناة عامة عند غياب المصدر."""
     picked, why = sources_for(SECTORS["sports"], [])
-    assert picked == ["*"]
+    assert picked == []
 
 
 def test_unknown_tag_falls_back_to_all(sources):
