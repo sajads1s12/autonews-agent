@@ -678,10 +678,12 @@ def suggest_sources(sector: SectorProfile, *,
     have = {str(item.get("id")) for item in (existing or [])}
     out: list[dict] = []
     languages = ["ar", "en"]
-    if any(token in sector.key for token in ("anime", "manga", "manhwa")) or any(
-            token in clean_name(sector.label) for token in ("انمي", "مانغا", "مانهوا", "مانجا")):
+    label = clean_name(sector.label)
+    manhwa_topic = "مانهوا" in label or "مانهو" in label or "manhwa" in sector.key or "webtoon" in sector.key
+    if not manhwa_topic and (any(token in sector.key for token in ("anime", "manga"))
+                             or any(token in label for token in ("انمي", "مانغا", "مانجا"))):
         languages.append("ja")
-    if "مانهوا" in clean_name(sector.label) or "manhwa" in sector.key:
+    if manhwa_topic:
         languages.append("ko")
     tags = list(sector.tags) or ["أخبار"]
     for query_index, query in enumerate(sector.queries, 1):
