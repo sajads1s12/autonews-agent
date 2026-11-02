@@ -403,21 +403,13 @@ def review_reasons(post: Any, *, score: float = 1.0, reasons: list[str] | None =
 def decide(*, mode: str, post: Any, score: float = 1.0,
            reasons: list[str] | None = None, min_score: float = 0.85,
            breaking: bool = False) -> tuple[str, list[str]]:
-    """القرار النهائي: `publish` فوراً أو `review` أو `scheduled` (يمرّره المستدعي).
-
-    قواعد لا تُخترق:
-      • الأخبار العاجلة **لا تنتظر** في النمط الذكي (السرعة شرط أساسي).
-      • «بلا مراجعة» تعني بلا مراجعة، حتى لو انخفضت الدرجة.
-      • «كل منشور» تعني كل منشور، حتى العاجل.
-    """
-    if mode == REVIEW_NEVER:
-        return "publish", []
-    if mode == REVIEW_ALWAYS:
-        return "review", ["كل منشور يحتاج موافقة (إعداد القناة)"]
-    if breaking:
-        return "publish", []
+    """المحتوى المشكوك به يُرفض ولا يتحوّل إلى طابور موافقات."""
     why = review_reasons(post, score=score, reasons=reasons, min_score=min_score)
-    return ("review", why) if why else ("publish", [])
+    if mode == REVIEW_ALWAYS:
+        return "review", ["كل منشور يحتاج موافقة (إعداد قديم)", *why]
+    if why:
+        return "discard", why
+    return "publish", []
 
 
 # --------------------------------------------------------------------------- #
