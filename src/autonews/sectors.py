@@ -532,6 +532,12 @@ def apply_to_channel(channel_id: str, name: str, *, description: str = "", confi
     if not path.exists():
         return False, f"لم أجد {path}"
 
+    if not description.strip():
+        import yaml
+        existing_config = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        existing_channel = next((item for item in (existing_config.get("channels") or [])
+                                 if str(item.get("id")) == channel_id), {})
+        description = str(existing_channel.get("description") or "")
     profile = detect(name, description)
     if description.strip() and (profile is None or profile.key.startswith("custom_")):
         profile = detect_custom_profile(name, description)
