@@ -464,7 +464,7 @@ class ContentWriter:
         summary = " ".join(strip_html(summary).split())
         # القالب الاحتياطي يلتزم بنفس اختصار الصياغة الذكية:
         # ثلاث جمل كحد أقصى و420 حرفاً، بلا حشو أو توقيت يستهلك مساحة الخبر.
-        sentences = re.split(r"(?<=[.!؟。])\\s+", summary)
+        sentences = re.split(r"(?<=[.!؟。])\s+", summary)
         summary = " ".join(part.strip() for part in sentences[:3] if part.strip())
         body = truncate(summary, min(420, max(180, int(channel.max_chars * 0.55))))
         return Post(
