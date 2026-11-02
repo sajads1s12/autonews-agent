@@ -513,8 +513,10 @@ def load_config(config_dir: str | Path = "config", *, override_dry_run: bool | N
             id=str(item["id"]).strip(),
             name=str(item.get("name") or item["id"]),
             platform=platform,
+            description=str(item.get("description") or ""),
             enabled=_as_bool(item.get("enabled"), True),
-            sources=[str(s).lower() for s in _as_list(item.get("sources"))] or ["*"],
+            sources=([str(s).lower() for s in _as_list(item.get("sources"))]
+                     if "sources" in item else ["*"]),
             tags=[str(t).lower() for t in _as_list(item.get("tags"))],
             exclude_tags=[str(t).lower() for t in _as_list(item.get("exclude_tags"))],
             keywords=[str(k).lower() for k in _as_list(item.get("keywords"))],
