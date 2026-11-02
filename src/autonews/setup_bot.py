@@ -1231,8 +1231,9 @@ class SetupBot:
 
         sector_line = ""
         if profile is not None:
-            from .sectors import apply_to_channel
+            from .sectors import apply_to_channel, ensure_sources
 
+            ensure_sources(profile, config_dir=self.config_dir)
             ok_a, msg_a = apply_to_channel(cid, title, config_dir=self.config_dir,
                                            override=True)
             #  نتحقّق من الملف فعلياً لا من رسالة الدالة وحدها
