@@ -515,6 +515,7 @@ def add_channel(channel_id: str, *, name: str = "", description: str = "", tags:
         stamp=time.strftime("%Y-%m-%d"),
         cid=cid,
         name=(name or sector or cid).replace('"', "'")[:50],
+        description=description or "",
         tags=", ".join(f'"{t}"' for t in (tags or [])),
         secret=secret,
     )
