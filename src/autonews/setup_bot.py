@@ -1187,11 +1187,12 @@ class SetupBot:
     # --------------------------------------------- ➕ قناة جديدة
     def _autolink(self, chat_id: str | int, raw: str) -> None:
         """ربط سريع: «المعرّف | الاسم» → تحقّق + حفظ + تعرّف على القطاع."""
-        from .sectors import detect
+        from .sectors import detect, detect_custom_profile
 
         parts = [p.strip() for p in raw.replace("،", "|").split("|")]
         target = to_channel_handle(parts[0]) if parts else ""
         name = parts[1] if len(parts) > 1 else ""
+        supplied_description = parts[2] if len(parts) > 2 else ""
         self.store.clear_pending()
 
         if not target:
