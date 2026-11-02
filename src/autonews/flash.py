@@ -581,7 +581,15 @@ class FlashLane:
                     _CS.load().record_post(channel.id, tz_offset=self.settings.timezone_offset)
                 except Exception:  # noqa: BLE001
                     pass
-                # جودة خفيفة: نمنع الأرقام المختلقة فقط (سريع جداً)
+                # لا يُنشر قالب احتياطي أو منشور قصير/غير مطابق للمصدر حتى في المسار السريع.
+                from .quality import check_post
+                quality_verdict = check_post(post, art, channel, self.settings.quality)
+                if post.used_fallback or post.sensitive or not quality_verdict.ok:
+                    log.warning("🚧 رُفض فوري من بوابة الجودة: %s", art.title[:60])
+                    result.details.append(f"🚧 رفض جودة: {art.title[:60]}")
+                    continue
+
+                # فحص إضافي سريع للأرقام في كل تشغيل.
                 if self.settings.quality.require_numbers_match:
                     from .quality import check_numbers
 
