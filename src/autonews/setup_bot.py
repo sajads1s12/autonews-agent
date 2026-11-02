@@ -1215,8 +1215,12 @@ class SetupBot:
         configured = load_config(self.config_dir).channels
         matched = next((c for c in configured
                         if str(c.name).strip().casefold() == title.strip().casefold()), None)
+        description = supplied_description or (matched.description if matched else "")
         existing = {c.id for c in configured}
-        cid = matched.id if matched else suggest_channel_id(title, existing=existing)
+        cid = matched.id if matched else suggest_channel_id(f"{title} {description}", existing=existing)
+        profile = detect(title, description)
+        if description and (profile is None or profile.key.startswith("custom_")):
+            profile = detect_custom_profile(title, description)
         created = ""
         if cid not in existing:
             from .editor import add_channel
