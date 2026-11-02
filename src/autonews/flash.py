@@ -466,6 +466,9 @@ class FlashLane:
 
         # 🌐 تعريب المصادر الأجنبية أولاً (حتى تُصنَّف عربياً)
         articles = self._translate_candidates(articles)
+        from .facts import has_independent_reports
+        sources_by_id = {source.id: source for source in self.settings.sources}
+        articles = [item for item in articles if has_independent_reports(item, articles, sources_by_id)]
 
         # الأحدث أولاً: الحرب تُنشر قبل التحليل
         candidates = sorted(articles, key=lambda a: a.published or utcnow(), reverse=True)
