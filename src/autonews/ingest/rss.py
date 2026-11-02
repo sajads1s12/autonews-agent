@@ -325,6 +325,8 @@ def fetch_source(source: Source, settings: Settings, *, fetcher: Fetcher | None 
             tags=[str(t).strip().lower() for t in (entry.get("tags") or []) if t][:8] or list(source.tags),
             content=truncate(content, 3000),
             image_url=str(entry.get("image") or ""),
+            origin_url=str(entry.get("origin_url") or ""),
+            origin_name=str(entry.get("origin_name") or ""),
         )
         if source.tags:
             art.tags = list(dict.fromkeys(art.tags + list(source.tags)))[:12]
