@@ -27,12 +27,9 @@ ai:
   # قائمة النماذج بالترتيب — أول نموذج يعمل يُستخدم، والباقي خطة بديلة.
   # يمكن تجاوزها من متغيّر البيئة GEMINI_MODELS=fake-a,fake-b,c
   models:
-    - gemini-2.5-flash
-    - gemini-2.0-flash
-    - gemini-2.0-flash-lite
-    - gemini-2.5-pro
-    - gemini-1.5-pro
-    - gemini-1.5-flash
+    - gemini-3.8-flash
+    - gemini-3.6-flash
+    - gemini-3.5-flash-lite
   temperature: 0.75
   max_output_tokens: 2048
   request_timeout: 90         # مهلة طلب Gemini (ثانية)
