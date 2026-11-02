@@ -916,6 +916,11 @@ class SetupBot:
             self.send(chat_id, f"📥 <b>{len(items)}</b> منشور ينتظر موافقتك:", keyboard=rows)
             return
 
+        if action == "apv":
+            control.take(item_id)
+            self.send(chat_id, "🚫 الموافقات اليدوية معطّلة؛ أُزيل هذا العنصر القديم ولن يُنشر.")
+            return
+
         item = control.item(item_id)
         if not item:
             answer_callback(self.cfg.token, "", "انتهت صلاحية هذا العنصر")
