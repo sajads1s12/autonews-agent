@@ -132,7 +132,7 @@ def update_channel_sources(channel_id: str, sources: list[str], *,
         return TagEdit(False, f"القناة «{channel_id}» غير موجودة")
     start, end = bounds
 
-    clean = [str(s).strip() for s in sources if str(s).strip()] or ["*"]
+    clean = [str(s).strip() for s in sources if str(s).strip()]
     line_value = "[" + ", ".join(f'"{s}"' if s != "*" else '"*"' for s in clean) + "]"
     src_at = next((i for i in range(start, end)
                    if re.match(r"\s*sources:", lines[i])), None)
@@ -442,7 +442,7 @@ CHANNEL_TEMPLATE = """
     name: "{name}"
     platform: telegram
     enabled: true
-    sources: ["*"]
+    sources: []
     tags: [{tags}]
     style: >
       أسلوب متخصّص واضح: جملة واحدة قوية، بلا مقدمات ولا حشو،
