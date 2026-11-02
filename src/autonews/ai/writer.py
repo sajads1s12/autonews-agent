@@ -462,10 +462,11 @@ class ContentWriter:
                        breaking: bool = False, is_update: bool = False) -> Post:
         summary = article.summary or article.content or article.title
         summary = " ".join(strip_html(summary).split())
-        body = truncate(summary, max(220, int(channel.max_chars * 0.55)))
-        stamp = human_age(article.published)
-        if stamp != "غير معروف":
-            body = f"{body}\n\n🕒 {stamp}"
+        # القالب الاحتياطي يلتزم بنفس اختصار الصياغة الذكية:
+        # ثلاث جمل كحد أقصى و420 حرفاً، بلا حشو أو توقيت يستهلك مساحة الخبر.
+        sentences = re.split(r"(?<=[.!؟。])\\s+", summary)
+        summary = " ".join(part.strip() for part in sentences[:3] if part.strip())
+        body = truncate(summary, min(420, max(180, int(channel.max_chars * 0.55))))
         return Post(
             channel_id=channel.id, platform=channel.platform,
             title=truncate(article.title, 150), body=body,
