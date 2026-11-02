@@ -666,6 +666,10 @@ def _attach_queries() -> None:
 
 
 _attach_queries()
+SECTORS["anime"].queries = (
+    "anime announcement OR anime season when:2d",
+    "new anime episodes schedule OR anime sequel when:7d",
+)
 
 
 def gnews_url(query: str, language: str = "ar") -> str:
