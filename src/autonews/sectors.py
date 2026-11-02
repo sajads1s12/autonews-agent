@@ -775,10 +775,26 @@ def ensure_sources(sector: SectorProfile, *, config_dir: str = "config") -> str:
 
 
 def catalog(config_dir: str = "config") -> list[dict]:
-    """كل القطاعات للعرض في البوت (بعدد مصادرها)."""
+    """القطاعات المعروفة والاختصاصات المخصصة المستخدمة فعلياً في القنوات."""
+    from pathlib import Path
+    import yaml
+
     sources = _load_sources(config_dir)
+    profiles = {profile.key: profile for profile in SECTORS.values()}
+    channels_path = Path(config_dir) / "channels.yml"
+    if channels_path.exists():
+        data = yaml.safe_load(channels_path.read_text(encoding="utf-8")) or {}
+        for channel in data.get("channels") or []:
+            name = str(channel.get("name") or "")
+            description = str(channel.get("description") or "")
+            channel_tags = {str(tag).lower() for tag in (channel.get("tags") or [])}
+            profile = (detect_custom_profile(name, description)
+                       if any(tag.startswith("custom_") for tag in channel_tags)
+                       else detect(name, description))
+            if profile is not None:
+                profiles.setdefault(profile.key, profile)
     out = []
-    for profile in SECTORS.values():
+    for profile in profiles.values():
         picked, _ = sources_for(profile, sources)
         out.append({"key": profile.key, "label": profile.label, "icon": profile.icon,
                     "tags": list(profile.tags),
