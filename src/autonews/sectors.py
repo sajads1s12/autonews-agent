@@ -688,7 +688,7 @@ def suggest_sources(sector: SectorProfile, *,
     topic = clean_name(" ".join(sector.keywords))
     manhwa_topic = "مانهوا" in topic or "مانهو" in topic or "manhwa" in topic or "webtoon" in topic
     if not manhwa_topic and (any(token in sector.key for token in ("anime", "manga"))
-                             or any(token in label for token in ("انمي", "مانغا", "مانجا"))):
+                             or any(token in topic for token in ("anime", "manga", "انمي", "مانغا", "مانجا"))):
         languages.append("ja")
     if manhwa_topic:
         languages.append("ko")
