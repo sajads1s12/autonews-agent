@@ -284,10 +284,10 @@ def score(name: str, username: str = "") -> dict[str, int]:
 
 
 
-def detect_custom_profile(name: str) -> SectorProfile | None:
+def detect_custom_profile(name: str, description: str = "") -> SectorProfile | None:
     """ملف اختصاص مستقل للقنوات ذات المواضيع غير المدرجة في القطاعات العامة."""
     from hashlib import sha1
-    clean = clean_name(name)
+    clean = clean_name(f"{name} {description}")
     words = [w for w in clean.split() if w not in _NOISE and len(w) > 1]
     if not words:
         return None
@@ -310,7 +310,7 @@ def detect(name: str, username: str = "") -> SectorProfile | None:
         # اختصاص مخصّص لأي اسم جديد: لا نفرض قائمة قطاعات ثابتة.
         # نستخدم كلمات الاسم نفسها كاستعلام بحث، وننشئ وسماً خاصاً به
         # حتى لا تختلط مصادره ببقية القنوات.
-        return detect_custom_profile(name)
+        return detect_custom_profile(name, username)
     # «أخبار X» تعني X: القطاع الأخصّ يتقدّم دائماً على «الأخبار العامة» متى كانت له دلالة
     # كافية. القناة العامة تستقبل كل شيء أصلاً، فلا خسارة في اختيار الأخصّ، أما العكس
     # فيُسقط الأنمي/الرياضة في القناة العامة (وهو بالضبط ما فصلناه بـ exclude_tags).
