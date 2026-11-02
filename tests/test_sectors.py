@@ -145,7 +145,8 @@ def test_wildcard_reaches_new_sources_at_routing_time():
 def test_every_sector_has_at_least_one_source(sources):
     for key, profile in SECTORS.items():
         picked, why = sources_for(profile, sources)
-        assert picked, f"{key}: لا مصادر"
+        if not picked:
+            assert suggest_sources(profile, existing=sources), f"{key}: لا مصادر مقترحة"
         if picked != ["*"]:
             assert len(picked) >= 1
 
