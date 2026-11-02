@@ -597,6 +597,12 @@ def sector_of(channel_id: str, *, config_dir: str = "config") -> SectorProfile |
     if not channel:
         return None
     tags = {str(t).strip().lower() for t in (channel.get("tags") or [])}
+    name = str(channel.get("name") or "")
+    description = str(channel.get("description") or "")
+    if "أنمي" in tags and "مانغا" in tags:
+        return detect("anime and manga")
+    if any(tag.startswith("custom_") for tag in tags):
+        return detect_custom_profile(name, description)
     best: tuple[int, SectorProfile] | None = None
     for profile in SECTORS.values():
         if not profile.tags:
@@ -607,7 +613,7 @@ def sector_of(channel_id: str, *, config_dir: str = "config") -> SectorProfile |
     if best:
         return best[1]
     # لا وسم مطابق: جرّب الاسم
-    return detect(str(channel.get("name") or ""))
+    return detect(name, description)
 
 
 def set_sector(channel_id: str, sector_key: str, *,
