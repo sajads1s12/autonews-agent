@@ -489,7 +489,7 @@ def normalize_config(config_dir: str = "config", *, dry_run: bool = False) -> li
     return fixed
 
 
-def apply_to_channel(channel_id: str, name: str, *, config_dir: str = "config",
+def apply_to_channel(channel_id: str, name: str, *, description: str = "", config_dir: str = "config",
                      override: bool = False) -> tuple[bool, str]:
     """يضبط وسوم القناة ومصادرها من اسمها. لا يفشل أبداً بصمت.
 
@@ -503,7 +503,7 @@ def apply_to_channel(channel_id: str, name: str, *, config_dir: str = "config",
     if not path.exists():
         return False, f"لم أجد {path}"
 
-    profile = detect(name)
+    profile = detect(name, description)
     if profile is None:
         return False, ("🤷 لم أتعرّف على القطاع من الاسم — ستبقى القناة تستقبل "
                        "كل الأخبار (وهذا آمن). يمكنك ضبط الوسوم يدوياً.")
