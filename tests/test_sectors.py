@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from autonews.sectors import (SECTORS, apply_to_channel, clean_name, detect,
-                              score, sources_for)
+                              score, sources_for, suggest_sources)
 
 
 # --------------------------------------------------------------------------- #
@@ -15,10 +15,10 @@ from autonews.sectors import (SECTORS, apply_to_channel, clean_name, detect,
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("name,expected", [
     ("أخبار الوتين", "news"),
-    ("قناة الأنمي والمانغا", "anime"),
+    ("قناة الأنمي والمانغا", "anime_manga"),
     ("عالم الأنمي", "anime"),
-    ("أخبار الأنمي والمانجا", "anime"),        # الأخصّ يفوز على «أخبار»
-    ("🎌 مانجا لاند", "anime"),
+    ("أخبار الأنمي والمانجا", "anime_manga"),        # الأخصّ يفوز على «أخبار»
+    ("🎌 مانجا لاند", "manga"),
     ("الدوري العراقي", "sports"),
     ("عالم التقنية", "tech"),
     ("أسعار الدولار", "economy"),
@@ -48,8 +48,8 @@ def test_detect_prefers_specialist_over_general():
 
 
 @pytest.mark.parametrize("name,expected", [
-    ("أخبار المانغا", "anime"),                          # كانت news: «اخبار» تُحسب ×٢ و«مانغا» ×١
-    ("قناة المانغا — أخبار المانغا الجديدة", "anime"),
+    ("أخبار المانغا", "manga"),                          # كانت news: «اخبار» تُحسب ×٢ و«مانغا» ×١
+    ("قناة المانغا — أخبار المانغا الجديدة", "manga"),
     ("أخبار الأنمي", "anime"),
     ("أخبار الرياضة", "sports"),
     ("أخبار التقنية", "tech"),
@@ -78,7 +78,7 @@ def test_clean_name_strips_emoji_and_punctuation():
 
 def test_score_reports_alternatives():
     scores = score("أخبار الأنمي والمانغا")
-    assert scores["anime"] > scores.get("news", 0)
+    assert detect("أخبار الأنمي والمانغا").key == "anime_manga"
 
 
 # --------------------------------------------------------------------------- #
