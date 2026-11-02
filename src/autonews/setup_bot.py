@@ -1261,7 +1261,7 @@ class SetupBot:
         from .editor import add_channel, suggest_channel_id
         from .sectors import apply_to_channel
         from .channels_main import load_channels
-        from .sectors import detect, ensure_sources, sector_of
+        from .sectors import detect, detect_custom_profile, ensure_sources, sector_of
 
         task = self.store.pending_task() or {}
         sector_key = str(task.get("sector", "") or "")
@@ -1296,6 +1296,10 @@ class SetupBot:
                     tags = list(chosen.tags)
                     cid = suggest_channel_id(name, existing=existing)
 
+        profile = (detect_custom_profile(name, description)
+                   if description.strip() else detect(name))
+        if not tags and profile is not None:
+            tags = list(profile.tags)
         ok, msg = add_channel(cid, name=name, description=description,
                              tags=tags, config_dir=self.config_dir)
         self.store.clear_pending()
@@ -1309,7 +1313,8 @@ class SetupBot:
 
         # ضبط المصادر حسب الاختصاص (لا قناة صامتة) + ذكر ما جرى
         extra = ""
-        profile = detect(name, description)
+        profile = (detect_custom_profile(name, description)
+                   if description.strip() else detect(name))
         if profile is not None:
             # أنشئ مصادر الموضوع أولاً، ثم اربط القناة بها؛ عكس الترتيب
             # كان يترك القناة على ["*"] فتستقبل كل الأخبار رغم اكتشاف اختصاصها.
