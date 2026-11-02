@@ -363,7 +363,7 @@ def sources_for(sector: SectorProfile,
     """
     items = [s for s in sources if isinstance(s, dict) and s.get("id")]
     if not items:
-        return ["*"], "لا توجد مصادر معرّفة"
+        return (["*"], "لا توجد مصادر معرّفة") if not sector.tags else ([], "لا توجد مصادر للاختصاص بعد")
 
     if not sector.tags:
         # قطاع عام = قناة «الرصاصة الفضية»: كل المصادر.
@@ -388,7 +388,7 @@ def sources_for(sector: SectorProfile,
         precision = len(hit) / max(len(tags), 1)
         scored.append((round(len(hit) * 2 + precision, 3), src))
     if not scored:
-        return ["*"], "لا مصدر بهذه الوسوم — سأنشر كل شيء"
+        return [], "لا يوجد مصدر مطابق للاختصاص"
 
     scored.sort(key=lambda pair: -pair[0])
     best = scored[0][0]
@@ -672,12 +672,12 @@ def ensure_sources(sector: SectorProfile, *, config_dir: str = "config") -> str:
 
     sources = _load_sources(config_dir)
     picked, _ = sources_for(sector, sources)
-    if picked != ["*"]:
-        return ""                              # له مصادر فعلاً
+    if picked and picked != ["*"]:
+        return ""                              # له مصادر فعلية
 
     new_items = suggest_sources(sector, existing=sources)
     if not new_items:
-        return ""
+        return f"⚠️ لا توجد مصادر تلقائية متاحة لـ{sector.label}؛ لن تُرسل أخبار غير مرتبطة."
 
     from pathlib import Path
 
