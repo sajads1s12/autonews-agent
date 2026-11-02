@@ -519,7 +519,7 @@ def apply_to_channel(channel_id: str, name: str, *, description: str = "", confi
     `override=False` (الافتراضي): لا يلمس قناة لها مصادر مضبوطة مسبقاً —
     حتى لا نفسد إعداداً يدوياً مقصوداً.
     """
-    from .editor import _verify_yaml, _write_atomic, update_channel_sources, update_channel_tags
+    from .editor import _read_channel_tags, _verify_yaml, _write_atomic, update_channel_sources, update_channel_tags
     from pathlib import Path
 
     path = Path(config_dir) / "channels.yml"
