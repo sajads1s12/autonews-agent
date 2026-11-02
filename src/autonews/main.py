@@ -288,7 +288,12 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
 
     from .facts import has_independent_reports
     source_index = {source.id: source for source in settings.sources}
+    incoming_articles = len(articles)
     articles = [article for article in articles if has_independent_reports(article, articles, source_index)]
+    unconfirmed_articles = incoming_articles - len(articles)
+    if unconfirmed_articles:
+        report.articles_skipped += unconfirmed_articles
+        report.add(f"🔎 استُبعد {unconfirmed_articles} خبراً لعدم وجود تأكيد مستقل")
 
     # صحة المصادر: تعطيل تلقائي للمصدر الذي يتكرّر فشله
     active_sources = []
