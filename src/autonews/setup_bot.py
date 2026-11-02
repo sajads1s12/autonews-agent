@@ -126,7 +126,7 @@ def answer_callback(token: str, callback_id: str, text: str = "") -> None:
 def get_updates(token: str, *, offset: int = 0, timeout: int = 0) -> list[dict]:
     ok, result = _api(token, "getUpdates", {
         "offset": offset, "timeout": timeout, "limit": 50,
-        "allowed_updates": '["message","callback_query"]',
+        "allowed_updates": '["message","callback_query","my_chat_member"]',
     })
     return result if ok else []
 
