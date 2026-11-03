@@ -92,7 +92,8 @@ TRANSLATE_SYSTEM = """أنت مترجم صحفي عربي محترف.
 
 
 def build_translate_prompt(article: Article, target: str = "ar") -> str:
-    lang = SOURCE_LANG_HINTS.get((article.lang or "").lower(), article.lang)
+    source_lang = (article.lang or "").strip().lower().replace("_", "-")
+    lang = SOURCE_LANG_HINTS.get(source_lang, article.lang)
     return f"""اعرّب الخبر التالي من {lang} إلى العربية.
 
 العنوان: {article.title}
