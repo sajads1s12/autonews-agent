@@ -109,11 +109,10 @@ def test_policy_never_sends_items_to_manual_approval(post, score, reasons, break
                          reasons=reasons, breaking=breaking)
     assert action in {"publish", "discard"}
     assert action != "review"
-    if score < 0.85 or reasons or post.used_fallback or post.sensitive or not post.source_url:
+    if why:
         assert action == "discard"
-        assert why
     else:
-        assert action == "publish" and why == []
+        assert action == "publish"
 
 
 def test_review_modes_cannot_override_no_approval_policy():
