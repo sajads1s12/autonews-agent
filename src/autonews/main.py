@@ -26,8 +26,8 @@ from .ai import AIUnavailable, ContentWriter, KeyRotator  # noqa: E402
 from .breaking import is_breaking, priority_of  # noqa: E402
 from .config_loader import Channel, ConfigError, Settings, load_config  # noqa: E402
 from .control import (  # noqa: E402
-    KIND_APPROVAL, KIND_SCHEDULED, ControlStore, decide, due_iso,
-    local_hour, minutes_until_open, preview_text,
+    KIND_SCHEDULED, ControlStore, decide, due_iso,
+    local_hour, minutes_until_open,
 )
 from .images import fetch_article_image  # noqa: E402
 from .ingest import Article, fetch_all_with_status  # noqa: E402
@@ -36,7 +36,6 @@ from .occasions import OccasionCalendar, decide as decide_duplicate  # noqa: E40
 from .publishers import PublishResult, build_publisher  # noqa: E402
 from .quality import check_post  # noqa: E402
 from .report import RunReport  # noqa: E402
-from .review import ReviewManager  # noqa: E402
 from .router import ContentRouter  # noqa: E402
 from .state import State, StateStore  # noqa: E402
 from .utils import (  # noqa: E402
@@ -232,7 +231,6 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
     engine = build_engine(settings)
     writer = ContentWriter(engine, settings, state)
     notifier = Notifier(settings.alerts, dry_run=settings.dry_run)
-    reviewer = ReviewManager(settings.alerts, state, dry_run=settings.dry_run)
     control = ControlStore.load() if settings.control.enabled else ControlStore()
     control.purge(max_hours=settings.control.queue_max_hours)
     tz_offset = settings.timezone_offset
@@ -250,14 +248,8 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
                  ", ".join(dedup_policy.get("occasions", [])),
                  dedup_policy.get("window_hours", 0), dedup_policy.get("max_updates", 0))
 
-    # ------------------------------------------------- 0) قرارات المراجعة
-    if settings.review.enabled:
-        decisions = reviewer.poll_decisions()
-        if decisions:
-            log.info("تلقّيت %d قرار مراجعة", len(decisions))
-        for rid in reviewer.cleanup_expired(settings.review.timeout_hours):
-            report.add(f"⌛ مسوّدة منتهية: {rid}")
-    approved = reviewer.take_approved(limit=settings.review.max_per_run) if settings.review.enabled else []
+    # ------------------------------------------------- 0) لا توجد موافقات بشرية
+    # تُترك عناصر الطابور القديمة للقراءة فقط؛ لا يُسحب منها أي منشور للنشر.
 
     # ------------------------------------------------- 1) سحب المحتوى
     log.info("─" * 26 + " 1/5 سحب المحتوى " + "─" * 26)
@@ -491,19 +483,8 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
             report.add(f"🛑 لن يُنشر في {channel.name}: {why_not}")
             return "blocked"
 
-        if action == "review":
-            item_id = control.enqueue(KIND_APPROVAL, channel.id, post.as_dict(),
-                                      score=score, reasons=why,
-                                      preview=preview_text({"post": post.as_dict(),
-                                                            "score": score,
-                                                            "reasons": why}))
-            report.add(f"👁 للموافقة · {channel.name} — {truncate(post.title, 70)} "
-                       f"(`{item_id}`)")
-            state.mark(art.fp, "review", title=truncate(art.title, 120))
-            if ctl.notify_approvals:
-                _notify_approval(settings, notifier, channel, post, item_id, why, score)
-            return "review"
-        return "publish"
+        # fail closed: لا مسوّدات ولا طابور موافقات في هذا المسار.
+        return "publish" if action == "publish" else "discard"
 
     def dispatch(post, channel: Channel, art: Article, *, breaking: bool) -> PublishResult:
         """نشر أو تحويل لمسوّدة، مع تطبيق كل السياسات."""
@@ -735,36 +716,7 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
                 report.posts_failed += 1
                 report.errors.append(f"{channel.id} (queued): {result.error}")
 
-    # ------------------------------------------------- 5) نشر المسوّدات الموافَق عليها
-    if approved:
-        log.info("─" * 26 + " 5/5 نشر المسوّدات الموافَق عليها " + "─" * 26)
-        from .ai.writer import Post
-
-        for entry in approved:
-            channel = next((c for c in settings.channels if c.id == entry.get("channel")), None)
-            if channel is None:
-                continue
-            post = Post.from_dict(entry.get("post") or {})
-            publisher = build_publisher(channel, dry_run=settings.dry_run,
-                                        timeout=max(30, settings.request_timeout))
-            image = fetch_article_image(post.source_url, settings=settings.images) \
-                if channel.with_image and settings.images.enabled else None
-            try:
-                result = publisher.publish(post, image)
-            finally:
-                if image:
-                    image.cleanup()
-            if result.ok:
-                published_any = True
-                report.posts_published += 1
-                report.per_channel[channel.id] = report.per_channel.get(channel.id, 0) + 1
-                report.add(f"✅ نُشر بعد الموافقة · {channel.name} — {truncate(post.title, 70)}")
-                state.record_post(channel=channel.id, article_fp=post.article_fp,
-                                  title=post.title, url=post.source_url,
-                                  platform=channel.platform, post_ref=result.ref)
-            else:
-                report.posts_failed += 1
-                report.errors.append(f"{channel.id} (review): {result.error}")
+    # ------------------------------------------------- 5) انتهى المسار بلا موافقات بشرية
 
     # ------------------------------------------------- خاتمة
     report.duration_s = time.time() - t_start
