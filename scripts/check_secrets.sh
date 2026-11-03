@@ -39,6 +39,7 @@ EXCLUDES=(
   --exclude-dir=.git --exclude-dir=__pycache__ --exclude-dir=.pytest_cache
   --exclude-dir=node_modules --exclude-dir=.state-repo --exclude-dir=.state-archive
   --exclude='*.md' --exclude='*.example' --exclude='check_secrets.sh'
+  --exclude='.env' --exclude='.env.*'
   --exclude='restore.sh' --exclude='*.lock'
 )
 
@@ -49,8 +50,10 @@ FALSE_POSITIVE='example|dummy|xxxx|your_|fake|FAKE|test_|sample|<.*>|\.\.\.'
 echo "🔐 فحص تسرّب الأسرار — الملفات الحالية"
 # =============================================================================
 for pattern in "${PATTERNS[@]}"; do
+  # لا نطبع محتوى السطر؛ قد يحتوي على السر نفسه. نعرض الملف ورقم السطر فقط.
   hits=$(grep -rInE "$pattern" "${EXCLUDES[@]}" . 2>/dev/null \
-         | grep -viE "$FALSE_POSITIVE" || true)
+         | grep -viE "$FALSE_POSITIVE" \
+         | sed -E 's/^([^:]+:[0-9]+):.*/\1/' | sort -u || true)
   if [ -n "$hits" ]; then
     echo "${RED}❌ نمط سرّ وُجد:${RESET} $pattern"
     echo "$hits" | head -5 | sed 's/^/   /'
@@ -58,11 +61,21 @@ for pattern in "${PATTERNS[@]}"; do
   fi
 done
 
-# ملفات لا يجب أن تكون موجودة أصلاً
+# الملفات الخاصة لا تُعدّ تسرّباً لمجرد وجود نسخة محلية مستثناة من Git.
+# الخطر الحقيقي: أن تكون متتبّعة (tracked) أو غير مستثناة وقد تدخل في commit.
+GIT_REPO=0
+if git rev-parse --git-dir >/dev/null 2>&1; then GIT_REPO=1; fi
 for f in .env .env.local secrets.json credentials.json service-account.json; do
   if [ -f "$f" ]; then
-    echo "${RED}❌ ملف سرّ يجب ألّا يُرفع:${RESET} $f"
-    FOUND=1
+    if [ "$GIT_REPO" -eq 1 ] && git ls-files --error-unmatch -- "$f" >/dev/null 2>&1; then
+      echo "${RED}❌ ملف سرّ متتبّع في Git:${RESET} $f"
+      FOUND=1
+    elif [ "$GIT_REPO" -eq 1 ] && git check-ignore -q -- "$f"; then
+      echo "ℹ️ ملف محلي مستثنى من Git: $f"
+    else
+      echo "${RED}❌ ملف خاص غير مستثنى من Git:${RESET} $f"
+      FOUND=1
+    fi
   fi
 done
 
