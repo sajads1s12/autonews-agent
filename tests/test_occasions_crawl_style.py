@@ -363,7 +363,7 @@ def test_writer_output_has_hook_and_polish(tmp_path):
     assert "جدير بالذكر" not in post.body
     rendered = post.render(ch(platform="facebook"))
     assert "🔄 تحديث" in rendered
-    assert "💡" in rendered
+    assert "💡" not in rendered  # لا نضيف سطر قيمة للقارئ إذا لم ينتجه النموذج
 
 
 def test_update_post_gets_update_badge():
