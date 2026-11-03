@@ -35,21 +35,26 @@ def env(tmp_path):
 
 
 def test_counts_today_and_total(env, monkeypatch):
-    # نثبّت الساعة في منتصف يوم بغداد كي لا يعتمد الاختبار على ساعة تشغيل CI.
+    # نبني التواريخ نسبةً إلى ساعة ثابتة حتى لا يتأثر الاختبار بمنتصف الليل.
     import autonews.stats as stats_module
     from datetime import datetime, timezone
-    fixed = utcnow() + timedelta(hours=6)
+    fixed = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
     monkeypatch.setattr(stats_module, "utcnow", lambda: fixed)
     state, control = env
-    _write_state(state, [_post("tg_main", hours_ago=1), _post("tg_main", hours_ago=5),
-                         _post("tg_main", hours_ago=100)])
+
+    def post(hours_ago):
+        when = fixed - timedelta(hours=hours_ago)
+        return {"at": when.isoformat(), "channel": "tg_main", "platform": "telegram",
+                "article_fp": f"fp{hours_ago}", "title": "خبر",
+                "url": "https://x/1", "ref": "1"}
+
+    _write_state(state, [post(1), post(5), post(100)])
     report = build_stats(known=[("tg_main", "📰 العامة")],
                          state_file=str(state), control_path=str(control))
     ch = report.channels[0]
     assert ch.total == 3
     assert ch.today == 2, "قبل ١٠٠ ساعة ليس اليوم"
     assert report.total_posts == 3
-
 
 def test_silent_channel_flagged(env):
     state, control = env
