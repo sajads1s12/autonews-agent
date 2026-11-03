@@ -9,7 +9,7 @@ import pytest
 from autonews.ai import Post
 from autonews.ai.writer import ContentWriter
 from autonews.config_loader import (
-    BreakingSettings, Channel, FlashSettings, Settings,
+    BreakingSettings, Channel, FlashSettings, Settings, Source,
 )
 from autonews.flash import (
     FlashLane, FlashVerdict, classify, freshness, is_fresh, _fast_body,
@@ -203,6 +203,10 @@ class FakePublisher:
 def make_lane(settings, state, publisher, *, outcomes: bool = False):
     """نمط النتائج معطّل افتراضياً في الاختبارات الميكانيكية (لها اختباراتها الخاصة)."""
     settings.outcomes.enabled = outcomes
+    # الخبر الرسمي يستطيع الوقوف وحده؛ بقية الأخبار تحتاج ناشراً مستقلاً يؤكدها.
+    if not settings.sources:
+        settings.sources = [Source(id="aljazeera", name="مصدر رسمي للاختبار",
+                                   url="https://example.com/rss", official=True)]
     return FlashLane(settings, state, engine=None, writer=ContentWriter(None, settings, state),
                      publisher_factory=publisher)
 
