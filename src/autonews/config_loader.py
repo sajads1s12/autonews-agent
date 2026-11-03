@@ -554,7 +554,9 @@ def load_config(config_dir: str | Path = "config", *, override_dry_run: bool | N
         for sid in ch.sources:
             if sid != "*" and sid not in known:
                 log.warning("القناة '%s' تشير إلى مصدر غير معروف: %s (سيُتجاهل)", ch.id, sid)
-        ch.sources = [s for s in ch.sources if s == "*" or s in known] or ["*"]
+        # [] اختيار مقصود: القناة تبقى معزولة حتى نربط لها مصدراً مطابقاً.
+        # لا نحوّل قائمة فارغة أو مراجع غير صالحة إلى "*" لأن ذلك يسرّب كل الأخبار.
+        ch.sources = [s for s in ch.sources if s == "*" or s in known]
 
     # ---- الأقسام الإضافية ----
     alerts_raw = _section(raw, "alerts")
