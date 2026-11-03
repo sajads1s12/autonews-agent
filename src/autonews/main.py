@@ -225,7 +225,8 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
         for art in articles:
             if (done < settings.translation.max_per_run
                     and needs_translation(art, target=settings.translation.target)
-                    and (art.lang or "").lower() in settings.translation.langs):
+                    and (art.lang or "").strip().lower().replace("_", "-").split("-", 1)[0]
+                    in settings.translation.langs):
                 tr = translate_article(art, engine, target=settings.translation.target)
                 if tr.ok and tr.changed:
                     done += 1
