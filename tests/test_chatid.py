@@ -169,6 +169,9 @@ def test_saved_id_overrides_env(tmp_path, monkeypatch):
     save_to_channels(cfg / "channels.yml", "tg_main", "-1007777777777")
 
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "@old_channel")
+    # اعزل الاختبار عن ملف الحالة الحقيقي الموجود على جهاز المطوّر.
+    from autonews import config_loader
+    monkeypatch.setattr(config_loader, "_setup_bindings", lambda *a, **k: {})
     from autonews.config_loader import load_config
     settings = load_config(str(cfg))
     ch = next(c for c in settings.channels if c.id == "tg_main")
