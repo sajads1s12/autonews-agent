@@ -297,7 +297,9 @@ def test_unknown_name_falls_back_safely(tmp_path, monkeypatch):
     bot._create_channel(111, "قناة رقم ٧")
     ids = [c.id for c in load_config(str(cfg)).channels]
     assert any(i.startswith("tg_new") for i in ids)
-    assert "لم أتعرّف" in sent[-1]
+    assert "لم أستطع تحديد اختصاص" in sent[-1]
+    channel = next(c for c in load_config(str(cfg)).channels if c.id in ids and c.id.startswith("tg_"))
+    assert channel.sources == []
 
 
 def test_set_max_posts_from_bot(tmp_path, monkeypatch):
