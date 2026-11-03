@@ -1,10 +1,7 @@
-"""🧠 التعرّف على قطاع القناة من اسمها — ثم ضبط الوسوم والمصادر تلقائياً.
+"""التعرّف على اختصاص القناة من اسمها ووصفها، ثم إنشاء مصادر بحث مخصّصة.
 
-الفكرة: المستخدم يربط قناة اسمها «أخبار الوتين» أو «عالم الأنمي والمانغا»،
-فيعرف النظام القطاع ويضبط الوسوم والمصادر والأسلوب بلا أي إعداد يدوي.
-
-القاعدة الأولى: **لا نحجب الأخبار أبداً**. إن لم نتعارف على القطاع نترك
-المصادر `["*"]` فيستمرّ النشر — التخصيص تحسين لا شرط.
+القنوات المتخصصة لا تستقبل المصادر العامة بالخطأ؛ وإذا لم يتوفر مصدر مطابق
+تبقى قائمة مصادرها فارغة حتى تُنشأ مصادر تحمل وسم الاختصاص نفسه.
 """
 from __future__ import annotations
 
@@ -79,6 +76,17 @@ _add(SectorProfile(
     priority=38,
     queries=('"manhwa chapter" OR "webtoon release" OR "manhwa announcement" when:2d',
              '"new manhwa" OR "webtoon hiatus return" when:7d'),
+))
+_add(SectorProfile(
+    key="manhua", label="مانهوا صينية", icon="📕",
+    keywords=("مانهوا_صينية", "مانهاوا_صينية", "مانهوا_صينيه",
+              "مانهاوا_صينيه", "مانهوا_صيني", "manhua", "chinese_comics"),
+    tags=("مانهوا صينية",),
+    hashtags=("#مانهوا_صينية",),
+    style="أخبار المانهوا الصينية: اسم العمل ثم الفصل أو موعد التحديث أو الإعلان، مع إبقاء الاسم الأصلي.",
+    priority=42,
+    queries=('"manhua chapter" OR "Chinese manhua" OR "manhua release date" when:2d',
+             '"new manhua" OR "manhua adaptation" OR "manhua hiatus return" when:7d'),
 ))
 _add(SectorProfile(
     key="gaming", label="ألعاب وقيمنق", icon="🎮",
@@ -368,28 +376,27 @@ def _source_langs(src: dict) -> set[str]:
     if langs:
         return langs
     url = str(src.get("url", ""))
-    # ceid هو الفيصل: Google News يضع اللغة والبلد فيه معاً («IQ:ar» / «US:en»)
-    if "ceid=" in url:
-        ceid = url.split("ceid=", 1)[1][:6]
-        return {"ar"} if ceid.endswith(":ar") else {"en"}
-    if "hl=ar" in url:
-        return {"ar"}
-    if "hl=en" in url:
-        return {"en"}
+    # افهم اللغات الأصلية من hl/ceid بدلاً من اعتبار كل ما ليس عربياً إنجليزياً.
+    from urllib.parse import parse_qs, urlsplit
+
+    params = parse_qs(urlsplit(url).query)
+    ceid = (params.get("ceid") or [""])[0].lower()
+    hl = (params.get("hl") or [""])[0].lower()
+    if ":" in ceid:
+        suffix = ceid.rsplit(":", 1)[-1]
+        if suffix in {"ar", "en", "ja", "ko", "zh-cn", "zh-tw", "zh-hans", "zh-hant"}:
+            return {"zh" if suffix.startswith("zh") else suffix}
+    if hl:
+        if hl.startswith("zh"):
+            return {"zh"}
+        if hl.startswith(("ar", "en", "ja", "ko")):
+            return {hl[:2]}
     return {"ar"}                      # الافتراض: عربي (كل المصادر الثابتة عربية)
 
 
 def sources_for(sector: SectorProfile,
                 sources: Iterable[dict]) -> tuple[list[str], str]:
-    """المصادر المناسبة لقطاع → (قائمة المعرّفات، شرح مختصر).
-
-    ثلاث قواعد تحكم الاختيار:
-      ١) **الوسوم المطابقة أكثر = أفضل**: مصدر يحمل «تقنية + علوم» أفضل من
-         مصدر يحمل «علوم» فقط (الأخير قد يكون زلازل).
-      ٢) **اللغة تفضيل لا شرط**: نقدّم العربي، وإن قلّ عن مصدرين نضيف الإنجليزي
-         (أخبار الأنمي العالمية مصدرها إنجليزي غالباً).
-      ٣) **الأمان أوّلاً**: إن لم نجد شيئاً نرجع `["*"]` — لا قناة صامتة.
-    """
+    """المصادر المناسبة لقطاع → قائمة معرّفات دقيقة؛ لا يوجد رجوع عام للاختصاصات."""
     items = [s for s in sources if isinstance(s, dict) and s.get("id")]
     if not items:
         return (["*"], "لا توجد مصادر معرّفة") if not sector.tags else ([], "لا توجد مصادر للاختصاص بعد")
@@ -715,6 +722,7 @@ def gnews_url(query: str, language: str = "ar") -> str:
         "en": ("en-US", "US", "US:en"),
         "ja": ("ja", "JP", "JP:ja"),
         "ko": ("ko", "KR", "KR:ko"),
+        "zh": ("zh-CN", "CN", "CN:zh-Hans"),
     }
     hl, gl, ceid = locales.get(language, locales["en"])
     return f"https://news.google.com/rss/search?q={quote(query)}&hl={hl}&gl={gl}&ceid={ceid}"
@@ -726,14 +734,14 @@ def suggest_sources(sector: SectorProfile, *,
     have = {str(item.get("id")) for item in (existing or [])}
     out: list[dict] = []
     languages = ["ar", "en"]
-    label = clean_name(sector.label)
     topic = clean_name(" ".join(sector.keywords))
-    manhwa_topic = "مانهوا" in topic or "مانهو" in topic or "manhwa" in topic or "webtoon" in topic
-    if not manhwa_topic and (any(token in sector.key for token in ("anime", "manga"))
-                             or any(token in topic for token in ("anime", "manga", "انمي", "مانغا", "مانجا"))):
+    # أضف لغة بلد العمل الأصلي مع الإبقاء على المصادر العربية والإنجليزية.
+    if sector.key in {"anime", "manga", "anime_manga"}:
         languages.append("ja")
-    if manhwa_topic:
+    if sector.key == "manhwa" or "manhwa" in topic or "webtoon" in topic:
         languages.append("ko")
+    if sector.key == "manhua" or "manhua" in topic or "مانهوا صينية" in topic:
+        languages.append("zh")
     tags = list(sector.tags) or ["أخبار"]
     for query_index, query in enumerate(sector.queries, 1):
         for language in languages:
