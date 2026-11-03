@@ -1311,8 +1311,8 @@ class SetupBot:
             from .sectors import apply_to_channel, ensure_sources
 
             ensure_sources(profile, config_dir=self.config_dir)
-            ok_a, msg_a = apply_to_channel(cid, title, config_dir=self.config_dir,
-                                           override=True)
+            ok_a, msg_a = apply_to_channel(cid, title, description=description,
+                                           config_dir=self.config_dir, override=True)
             #  نتحقّق من الملف فعلياً لا من رسالة الدالة وحدها
             applied = next((c for c in load_channels(self.config_dir) if c.get("id") == cid), {})
             srcs = applied.get("sources") or []
@@ -1321,8 +1321,8 @@ class SetupBot:
             sector_line = (f"\n\n{'✅' if ok_a else '⚠️'} {msg_a}"
                            f"\n📡 المصادر في الملف: {shown}")
         else:
-            sector_line = ("\n\n🤷 لم أعرف القطاع من الاسم — ستنشر كل الأخبار "
-                           "(وهذا آمن). يمكنك تسميتها «أخبار الأنمي» مثلاً.")
+            sector_line = ("\n\n⚠️ لم أتمكن من تحديد اختصاص القناة؛ لن أوجّه إليها أخباراً عامة. "
+                           "أضف وصفاً واضحاً لموضوعها ثم أعد الربط.")
 
         self.send(chat_id,
                   "🎉 <b>تمّ الربط</b>\n\n"
