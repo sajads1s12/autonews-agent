@@ -224,7 +224,7 @@ _add(SectorProfile(
 # كلمات لا تدلّ على شيء — نحذفها قبل المطابقة («قناة»، «الأخبار»… )
 _NOISE = ("قناة", "قناه", "ال", "لـ", "الرسمية", "الرسمي", "بوت", "الرئيسية",
           "الرئيسي", "عالم", "عربية", "بالعربي", "الاولى", "الاول",
-          "اليوم", "الان", "الآن", "الحياه", "الحياة", "لاند", "نيوز")
+          "اليوم", "الان", "الآن", "الحياه", "الحياة", "لاند", "نيوز", "رقم", "all", "general", "default", "channel")
 _EMOJI_RE = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F\u2B00-\u2BFF]")
 _PUNCT_RE = re.compile(r"[^\w\u0600-\u06FF\s]+")
 
@@ -336,6 +336,12 @@ def detect(name: str, username: str = "") -> SectorProfile | None:
 
     عند التعادل نرجّح الأعلى `priority` — أي الأخصّ («أنمي» تتقدّم على «أخبار»).
     """
+    combined = clean_name(f"{name} {username}")
+    # المصطلح الصيني مستقل عن المانهوا الكورية رغم تشابه الكتابة العربية.
+    if any(token in combined for token in
+           ("مانهوا صينيه", "مانهاوا صينيه", "مانهوا صيني", "manhua", "chinese comics")):
+        return SECTORS["manhua"]
+
     scores = score(name, username)
     if "anime" in scores and "manga" in scores:
         a, m = SECTORS["anime"], SECTORS["manga"]
@@ -735,12 +741,17 @@ def suggest_sources(sector: SectorProfile, *,
     out: list[dict] = []
     languages = ["ar", "en"]
     topic = clean_name(" ".join(sector.keywords))
-    # أضف لغة بلد العمل الأصلي مع الإبقاء على المصادر العربية والإنجليزية.
-    if sector.key in {"anime", "manga", "anime_manga"}:
+    # نقرأ موضوع الملف نفسه، بما في ذلك الملفات المخصصة المشتقة من الوصف.
+    chinese = (sector.key == "manhua" or "manhua" in topic
+               or "مانهوا صينيه" in topic or "مانهاوا صينيه" in topic)
+    korean = (sector.key == "manhwa" or "manhwa" in topic or "webtoon" in topic)
+    japanese = (sector.key in {"anime", "manga", "anime_manga"}
+                or any(token in topic for token in ("anime", "manga", "انمي", "مانغا", "مانجا")))
+    if japanese and not chinese and not korean:
         languages.append("ja")
-    if sector.key == "manhwa" or "manhwa" in topic or "webtoon" in topic:
+    if korean and not chinese:
         languages.append("ko")
-    if sector.key == "manhua" or "manhua" in topic or "مانهوا صينية" in topic:
+    if chinese:
         languages.append("zh")
     tags = list(sector.tags) or ["أخبار"]
     for query_index, query in enumerate(sector.queries, 1):
