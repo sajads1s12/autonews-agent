@@ -626,7 +626,9 @@ def sector_of(channel_id: str, *, config_dir: str = "config") -> SectorProfile |
     name = str(channel.get("name") or "")
     description = str(channel.get("description") or "")
     # قناة عامة صريحة: بلا وسوم/كلمات، ومصادرها "*"؛ لا نخمّن اختصاصها من اسمها.
-    if not tags and not (channel.get("keywords") or []) and "*" in (channel.get("sources") or []):
+    if ("*" in (channel.get("sources") or [])
+            and not (channel.get("keywords") or [])
+            and not str(channel.get("description") or "").strip()):
         return SECTORS["news"]
     if "أنمي" in tags and "مانغا" in tags:
         return detect("anime and manga")
