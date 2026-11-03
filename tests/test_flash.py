@@ -286,6 +286,18 @@ def test_lane_respects_channel_source_filter():
     assert result.published == 0
 
 
+def test_lane_never_routes_to_channel_without_sources():
+    settings = Settings()
+    settings.flash = flash_cfg()
+    settings.channels = [ch(id="tg_unlinked", sources=[])]
+    state = State()
+    pub = FakePublisher()
+    lane = make_lane(settings, state, pub)
+    result = lane.run([art("قصف صاروخي")])
+    assert result.published == 0
+    assert not pub.calls
+
+
 def test_lane_skips_non_flash_eligible_channel():
     settings = Settings()
     settings.flash = flash_cfg()
