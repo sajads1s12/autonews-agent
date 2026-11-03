@@ -34,7 +34,12 @@ def env(tmp_path):
     return state, control
 
 
-def test_counts_today_and_total(env):
+def test_counts_today_and_total(env, monkeypatch):
+    # نثبّت الساعة في منتصف يوم بغداد كي لا يعتمد الاختبار على ساعة تشغيل CI.
+    import autonews.stats as stats_module
+    from datetime import datetime, timezone
+    fixed = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(stats_module, "utcnow", lambda: fixed)
     state, control = env
     _write_state(state, [_post("tg_main", hours_ago=1), _post("tg_main", hours_ago=5),
                          _post("tg_main", hours_ago=100)])
