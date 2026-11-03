@@ -60,7 +60,7 @@ bash scripts/bootstrap_state_repo.sh     # إنشاء المستودع الخا�
 
 | الأداة | ما تفعله |
 |---|---|
-| `pytest` | **٥١٤ اختباراً** — منطق + مزامنة git حقيقية + نظافة مستودع |
+| `pytest` | اختبارات آلية تشمل المنطق والتكامل ومزامنة git ونظافة المستودع |
 | `python -m autonews.preflight` | الفحوص العشرة قبل التشغيل (بلا شبكة) |
 | `python -m autonews.preflight --online` | + اتصال Gemini وتيليجرام حقيقي |
 | `bash scripts/check_secrets.sh --history` | يكشف سرّاً في تاريخ Git لا في الملفات فقط |
