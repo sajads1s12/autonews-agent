@@ -384,23 +384,22 @@ def test_normalize_config_unlocks_frozen_general_channel(tmp_path):
 
     cfg = tmp_path / "config"
     cfg.mkdir()
-    for name in ("channels.yml", "settings.yml", "occasions.yml"):
-        shutil.copy(f"config/{name}", cfg / name)
-
-    data = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
-    main = next(c for c in data["channels"] if c["id"] == "tg_main")
-    main["sources"] = ["ina_official", "shafaq"]           # قفل قديم
-    sports = next(c for c in data["channels"] if c["id"] == "tg_sports")
-    before_sports = list(sports["sources"])
     (cfg / "channels.yml").write_text(
-        yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        yaml.safe_dump({"channels": [{
+            "id": "tg_main", "name": "القناة العامة", "platform": "telegram",
+            "enabled": True, "sources": ["ina_official", "shafaq"],
+            "exclude_tags": ["أنمي"],
+        }, {
+            "id": "tg_sports", "name": "رياضة", "platform": "telegram",
+            "enabled": True, "sources": ["sport_feed"], "tags": ["رياضة"],
+        }]}, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
     fixed = normalize_config(str(cfg))
     assert "tg_main" in fixed
 
     after = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
     assert next(c for c in after["channels"] if c["id"] == "tg_main")["sources"] == ["*"]
-    assert next(c for c in after["channels"] if c["id"] == "tg_sports")["sources"] == before_sports
+    assert next(c for c in after["channels"] if c["id"] == "tg_sports")["sources"] == ["sport_feed"]
     # ولا أثر ثانٍ عند إعادة التشغيل
     assert normalize_config(str(cfg)) == []
 
@@ -415,12 +414,9 @@ def test_exclude_tags_is_separation_not_customisation(tmp_path):
 
     cfg = tmp_path / "config"
     cfg.mkdir()
-    for name in ("channels.yml", "settings.yml", "occasions.yml"):
-        shutil.copy(f"config/{name}", cfg / name)
-    data = yaml.safe_load((cfg / "channels.yml").read_text(encoding="utf-8"))
-    main = next(c for c in data["channels"] if c["id"] == "tg_main")
-    main["sources"] = ["shafaq"]
-    main["exclude_tags"] = ["أنمي"]
     (cfg / "channels.yml").write_text(
-        yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        yaml.safe_dump({"channels": [{
+            "id": "tg_main", "name": "القناة العامة", "platform": "telegram",
+            "enabled": True, "sources": ["shafaq"], "exclude_tags": ["أنمي"],
+        }]}, allow_unicode=True, sort_keys=False), encoding="utf-8")
     assert "tg_main" in normalize_config(str(cfg))
