@@ -888,7 +888,10 @@ class FlashLane:
     # ------------------------------------------------------------------ مساعدات
     def _targets(self, channel: Channel, article: Article) -> bool:
         """هل هذه القناة مهتمة بهذا الخبر؟ (مصدر/وسم/كلمة مفتاحية)."""
-        if channel.sources and "*" not in channel.sources and article.source_id not in channel.sources:
+        # قائمة المصادر الفارغة تعني أن القناة غير مربوطة بعد — لا نرسل لها عاجلاً.
+        if not channel.sources:
+            return False
+        if "*" not in channel.sources and article.source_id not in channel.sources:
             return False
         # 🚫 استثناء صريح: «القناة العامة لا تستقبل الأنمي» (فصل القطاعات)
         if channel.exclude_tags:
