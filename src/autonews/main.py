@@ -376,12 +376,11 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
 
     def gate(channel: Channel, post, art: Article, *, breaking: bool,
              verdict=None) -> str:
-        """بوّابة التحكّم: نشر الآن (`publish`) أو طابور (`review`/`scheduled`).
+        """بوّابة النشر: نشر موثوق، رفض مشكوك، أو تأجيل بسبب الجدول.
 
-        ثلاث قواعد لا تُخترق:
-          • 🔴 العاجل لا ينتظر هدوءاً ولا موافقةً في النمط الذكي.
-          • انخفاض الجودة أو الصياغة الاحتياطية ⇒ عينُك قبل النشر.
-          • ساعات الهدوء **تُؤجّل** ولا تُلغي — تُنشر تلقائياً عند فتح النافذة.
+        • لا توجد موافقات بشرية؛ الضعيف/الاحتياطي/الحساس يُرفض.
+        • التحقق من الثقة والجودة يعمل حتى عند تعطيل أدوات الجدولة.
+        • ساعات الهدوء تؤجّل المنشور النظيف ولا تُسقطه.
         """
         ctl = settings.control
         c = control.get(channel.id)
@@ -546,9 +545,9 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
                 report.add(f"🚧 رُفض ({channel.name}): {' | '.join(verdict.reasons)[:120]}")
                 continue
 
-            # 🎛 بوّابة التحكّم: نشر فوري / موافقة / تأجيل
+            # 🎛 بوّابة النشر: نشر موثوق / رفض / تأجيل
             decision = gate(channel, post, art, breaking=breaking, verdict=verdict)
-            if decision in ("review", "deferred", "blocked"):
+            if decision in ("discard", "review", "deferred", "blocked"):
                 if decision == "review":
                     reviewed_any = True
                 continue
