@@ -176,46 +176,6 @@ def run_check(settings: Settings, *, probe: bool = False) -> int:
 # --------------------------------------------------------------------------- #
 #  دورة النشر الأساسية
 # --------------------------------------------------------------------------- #
-def _notify_approval(settings: Settings, notifier, channel: Channel, post, item_id: str,
-                     reasons: list[str], score: float) -> None:
-    """إشعار «يحتاج موافقتك» إلى حسابك مع أزرار نشر/تعديل/حذف.
-
-    الأزرار تُعالَج في `state_bot`/`setup_bot` — وإن لم يكن البوت شغّالاً
-    يبقى العنصر في الطابور ولا يُنشر شيء بلا ضغطتك (لا نشر عشوائي).
-    """
-    if settings.dry_run:
-        log.info("[DRY-RUN] موافقة مطلوبة: %s (#%s)", truncate(post.title, 60), item_id)
-        return
-    token = settings.alerts.bot_token
-    chat = settings.alerts.chat_id
-    if not (token and chat):
-        log.warning("لا يوجد بوت إشعارات — العنصر #%s محفوظ في الطابور", item_id)
-        return
-    text = preview_text({"post": post.as_dict(), "score": score, "reasons": reasons,
-                         "kind": KIND_APPROVAL})
-    text = f"{text}\n\n<i>#{item_id}</i>"
-    keyboard = {"inline_keyboard": [[
-        {"text": "✅ نشر", "callback_data": f"apv:{item_id}"},
-        {"text": "👁 معاينة", "callback_data": f"prv:{item_id}"},
-        {"text": "🗑 حذف", "callback_data": f"rej:{item_id}"},
-    ]]}
-    import json
-    import urllib.request
-
-    payload = json.dumps({"chat_id": chat, "text": text[:4000], "parse_mode": "HTML",
-                          "disable_web_page_preview": True,
-                          "reply_markup": keyboard}).encode("utf-8")
-    req = urllib.request.Request(
-        f"https://api.telegram.org/bot{token}/sendMessage", data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310
-            resp.read()
-    except Exception as exc:  # noqa: BLE001 — الإشعار لا يُسقط التشغيل
-        log.warning("تعذّر إرسال إشعار الموافقة: %s", exc)
-
-
 def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
     t_start = time.time()
     report = RunReport(dry_run=settings.dry_run)
