@@ -36,10 +36,15 @@ def test_detect_known_names(name, expected):
     assert profile.key == expected
 
 
-@pytest.mark.parametrize("name", ["قناة دجلة", "السومرية", "كركوك", ""])
-def test_detect_returns_none_when_unclear(name):
-    """لا تخمين بلا دلالة — القناة تبقى تستقبل كل شيء (أآمن)."""
-    assert detect(name) is None
+@pytest.mark.parametrize("name", ["قناة دجلة", "السومرية", "كركوك"])
+def test_unknown_named_channels_get_scoped_custom_profiles(name):
+    profile = detect(name)
+    assert profile is not None and profile.key.startswith("custom_")
+    assert profile.tags and profile.queries
+
+
+def test_empty_channel_name_has_no_profile():
+    assert detect("") is None
 
 
 def test_detect_prefers_specialist_over_general():
