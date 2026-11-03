@@ -52,12 +52,18 @@ def detect_lang(text: str, fallback: str = "ar") -> str:
 
 def needs_translation(article: Article, *, target: str = "ar") -> bool:
     """هل يحتاج الخبر تعريباً قبل النشر؟"""
-    if (article.lang or "").lower() == target:
+    source_lang = (article.lang or "").strip().lower().replace("_", "-")
+    target_lang = (target or "ar").strip().lower()
+    if source_lang == target_lang:
         return False
-    if (article.lang or "").lower() not in SOURCE_LANG_HINTS:
+    if source_lang not in SOURCE_LANG_HINTS:
         return False
+    # أسماء الأعمال والعلامات اللاتينية شائعة داخل الأخبار اليابانية والكورية
+    # والصينية؛ لا نسمح لها بتغيير لغة المصدر المعلنة إلى الإنجليزية.
+    if source_lang.startswith(("ja", "ko", "zh")):
+        return True
     sample = f"{article.title} {article.summary[:200]}"
-    return detect_lang(sample, fallback=article.lang) != target
+    return detect_lang(sample, fallback=source_lang) != target_lang
 
 
 @dataclass(slots=True)
