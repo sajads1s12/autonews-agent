@@ -293,13 +293,14 @@ def test_unknown_name_stays_unrouted_until_topic_is_known(tmp_path, monkeypatch)
     from autonews.config_loader import load_config
 
     bot, cfg, sent = _bot_with_config(tmp_path, monkeypatch)
+    before = {c.id for c in load_config(str(cfg)).channels}
     bot.store.start_awaiting("", telegram_user=0, kind="new_channel")
     bot._create_channel(111, "قناة رقم ٧")
-    ids = [c.id for c in load_config(str(cfg)).channels]
-    assert any(i.startswith("tg_new") for i in ids)
+    added = [c for c in load_config(str(cfg)).channels if c.id not in before]
+    assert len(added) == 1
+    assert added[0].id.startswith("tg_new")
     assert "لم أستطع تحديد اختصاص" in sent[-1]
-    channel = next(c for c in load_config(str(cfg)).channels if c.id in ids and c.id.startswith("tg_"))
-    assert channel.sources == []
+    assert added[0].sources == []
 
 
 def test_set_max_posts_from_bot(tmp_path, monkeypatch):
