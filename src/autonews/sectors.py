@@ -625,11 +625,11 @@ def sector_of(channel_id: str, *, config_dir: str = "config") -> SectorProfile |
     tags = {str(t).strip().lower() for t in (channel.get("tags") or [])}
     name = str(channel.get("name") or "")
     description = str(channel.get("description") or "")
-    if "أنمي" in tags and "مانغا" in tags:
-        return detect("anime and manga")
-    # القناة ذات النجمة وبدون اختصاص صريح هي قناة عامة، لا نخمّن موضوعها من الاسم.
+    # قناة عامة صريحة: بلا وسوم/كلمات، ومصادرها "*"؛ لا نخمّن اختصاصها من اسمها.
     if not tags and not (channel.get("keywords") or []) and "*" in (channel.get("sources") or []):
         return SECTORS["news"]
+    if "أنمي" in tags and "مانغا" in tags:
+        return detect("anime and manga")
     custom_tag = next((tag for tag in tags if tag.startswith("custom_")), "")
     if custom_tag:
         for item in data.get("channels") or []:
