@@ -83,7 +83,7 @@ def render_table(channels: list[dict[str, Any]], *, checks: dict[str, Any] | Non
 
 def render_matrix(channels: list[dict[str, Any]]) -> str:
     """مصفوفة ديناميكية للقنوات الفعلية؛ لا تعتمد على قائمة قطاعات ثابتة."""
-    lines = ["🗺 اختصاصات القنوات ومصادرها", "─" * 62]
+    lines = ["🗺 مصفوفة التوجيه — اختصاصات القنوات ومصادرها", "─" * 62]
     enabled = [ch for ch in channels if ch.get("enabled")]
     for ch in enabled:
         name = str(ch.get("name") or ch.get("id") or "قناة")
@@ -98,6 +98,9 @@ def render_matrix(channels: list[dict[str, Any]]) -> str:
         lines.append(f"• {name} ({cid})")
         lines.append(f"  الاختصاص: {topic[:90]}")
         lines.append(f"  التوجيه: {scope}")
+        excluded = [str(tag) for tag in (ch.get("exclude_tags") or [])]
+        if excluded:
+            lines.append("  يستثني: " + "، ".join(excluded))
     general = [str(ch.get("id")) for ch in enabled
                if "*" in (ch.get("sources") or []) and not (ch.get("tags") or [])]
     if general:
