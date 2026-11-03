@@ -93,56 +93,34 @@ def test_hourly_cap_resets_next_hour():
 
 
 # --------------------------------------------------------------------------- #
-#  المراجعة الذكية
+#  سياسة النشر بلا موافقات يدوية
 # --------------------------------------------------------------------------- #
-def test_smart_mode_publishes_clean_post():
-    action, why = decide(mode=REVIEW_SMART, post=FakePost(), score=0.95)
-    assert action == "publish" and why == []
+@pytest.mark.parametrize("post,score,reasons,breaking", [
+    (FakePost(), 0.95, [], False),
+    (FakePost(), 0.50, [], False),
+    (FakePost(used_fallback=True), 0.95, [], False),
+    (FakePost(title="انفجار قرب سوق", body="سقوط وفيات"), 0.95, [], False),
+    (FakePost(source_url=""), 0.95, [], False),
+    (FakePost(title="انفجار", used_fallback=True, source_url=""), 0.2, [], True),
+    (FakePost(), 0.99, ["تكرار محتمل"], False),
+])
+def test_policy_never_sends_items_to_manual_approval(post, score, reasons, breaking):
+    action, why = decide(mode=REVIEW_SMART, post=post, score=score,
+                         reasons=reasons, breaking=breaking)
+    assert action in {"publish", "discard"}
+    assert action != "review"
+    if score < 0.85 or reasons or post.used_fallback or post.sensitive or not post.source_url:
+        assert action == "discard"
+        assert why
+    else:
+        assert action == "publish" and why == []
 
 
-def test_smart_mode_reviews_low_score():
-    action, why = decide(mode=REVIEW_SMART, post=FakePost(), score=0.50, min_score=0.85)
-    assert action == "review" and any("درجة" in w for w in why)
-
-
-def test_smart_mode_reviews_fallback_writing():
-    action, why = decide(mode=REVIEW_SMART, post=FakePost(used_fallback=True), score=0.95)
-    assert action == "review" and any("احتياطية" in w for w in why)
-
-
-def test_smart_mode_reviews_sensitive_words():
-    post = FakePost(title="انفجار قرب سوق", body="سقوط وفيات")
-    action, why = decide(mode=REVIEW_SMART, post=post, score=0.95)
-    assert action == "review" and any("حسّاسة" in w for w in why)
-
-
-def test_smart_mode_reviews_missing_source():
-    post = FakePost(source_url="")
-    action, why = decide(mode=REVIEW_SMART, post=post, score=0.95)
-    assert action == "review" and any("مصدر" in w for w in why)
-
-
-def test_breaking_never_waits_in_smart_mode():
-    """السرعة شرط أساسي: العاجل يُنشر حتى لو كان مشكوكاً."""
-    post = FakePost(title="انفجار", used_fallback=True, source_url="")
-    action, _ = decide(mode=REVIEW_SMART, post=post, score=0.2, breaking=True)
-    assert action == "publish"
-
-
-def test_always_mode_reviews_everything_even_breaking():
-    action, why = decide(mode=REVIEW_ALWAYS, post=FakePost(), score=1.0, breaking=True)
-    assert action == "review" and why
-
-
-def test_never_mode_never_reviews():
-    action, _ = decide(mode=REVIEW_NEVER, post=FakePost(used_fallback=True), score=0.1)
-    assert action == "publish"
-
-
-def test_extra_reasons_force_review():
-    action, why = decide(mode=REVIEW_SMART, post=FakePost(), score=0.99,
-                         reasons=["تكرار محتمل"])
-    assert action == "review" and "تكرار محتمل" in why
+def test_review_modes_cannot_override_no_approval_policy():
+    clean = decide(mode=REVIEW_ALWAYS, post=FakePost(), score=1.0, breaking=True)
+    weak = decide(mode=REVIEW_NEVER, post=FakePost(used_fallback=True), score=0.1)
+    assert clean == ("publish", [])
+    assert weak[0] == "discard"
 
 
 # --------------------------------------------------------------------------- #
