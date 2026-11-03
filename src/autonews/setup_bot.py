@@ -642,7 +642,10 @@ class SetupBot:
             return
 
         if data.startswith("rev:"):
-            self._on_review_mode(chat_id, data)
+            self.send(chat_id,
+                      "🛡 <b>سياسة النشر ثابتة:</b> لا توجد موافقات يدوية. "
+                      "الخبر غير الموثوق يُستبعد تلقائياً، والموثوق يُنشر بعد التحقق.",
+                      keyboard=[[{"text": "↩️ لوحة التحكّم", "callback_data": "ctl"}]])
             return
 
         if data.startswith("brd:"):
