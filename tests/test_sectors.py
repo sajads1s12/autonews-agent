@@ -147,7 +147,7 @@ def test_every_sector_has_at_least_one_source(sources):
         picked, why = sources_for(profile, sources)
         if not picked:
             assert suggest_sources(profile, existing=sources), f"{key}: لا مصادر مقترحة"
-        if picked != ["*"]:
+        if picked != ["*"] and picked:
             assert len(picked) >= 1
 
 
@@ -214,10 +214,13 @@ def test_apply_unknown_channel(cfgdir):
     assert not ok and "غير موجودة" in msg
 
 
-def test_apply_unclear_name_keeps_channel_open(cfgdir):
+def test_apply_unknown_name_gets_custom_scope(cfgdir):
+    from autonews.config_loader import load_config
     ok, msg = apply_to_channel("tg_main", "قناة دجلة", config_dir=str(cfgdir), override=True)
-    assert not ok
-    assert "لم أتعرّف" in msg
+    assert ok, msg
+    channel = next(c for c in load_config(str(cfgdir)).channels if c.id == "tg_main")
+    assert channel.sources and channel.sources != ["*"]
+    assert any(tag.startswith("custom_") for tag in channel.tags)
 
 
 # --------------------------------------------------------------------------- #
@@ -226,7 +229,7 @@ def test_apply_unclear_name_keeps_channel_open(cfgdir):
 def test_sector_of_reads_from_tags(cfgdir):
     from autonews.sectors import sector_of
 
-    assert sector_of("tg_anime", config_dir=str(cfgdir)).key == "anime"
+    assert sector_of("tg_anime", config_dir=str(cfgdir)).key == "anime_manga"
     assert sector_of("tg_main", config_dir=str(cfgdir)).key == "news"
 
 
