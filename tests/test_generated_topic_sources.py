@@ -41,3 +41,20 @@ def test_default_translation_languages_cover_japanese_korean_and_chinese():
     from autonews.config_loader import TranslationSettings
 
     assert {"ja", "ko", "zh"}.issubset(set(TranslationSettings().langs))
+
+
+
+def test_japanese_korean_and_chinese_articles_are_eligible_for_translation():
+    from types import SimpleNamespace
+    from autonews.i18n.translate import build_translate_prompt, needs_translation
+
+    samples = {
+        "ja": "日本の新作アニメが発表されました",
+        "ko": "새로운 웹툰 작품이 발표되었습니다",
+        "zh": "中国漫画发布了新的章节",
+    }
+    for language, headline in samples.items():
+        article = SimpleNamespace(lang=language, title=headline, summary=headline, content="")
+        assert needs_translation(article, target="ar")
+        prompt = build_translate_prompt(article, target="ar")
+        assert {"ja": "اليابانية", "ko": "الكورية", "zh": "الصينية"}[language] in prompt
