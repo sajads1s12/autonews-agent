@@ -33,3 +33,10 @@ def test_generated_feed_ids_are_stable_for_same_profile():
     first = suggest_sources(profile)
     second = suggest_sources(profile)
     assert [item["id"] for item in first] == [item["id"] for item in second]
+
+
+
+def test_default_translation_languages_cover_japanese_korean_and_chinese():
+    from autonews.config_loader import TranslationSettings
+
+    assert {"ja", "ko", "zh"}.issubset(set(TranslationSettings().langs))
