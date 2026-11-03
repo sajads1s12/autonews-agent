@@ -517,13 +517,17 @@ def normalize_config(config_dir: str = "config", *, dry_run: bool = False) -> li
         cid = str(ch.get("id") or "")
         if not cid:
             continue
-        #  «مخصّصة» = لها وسوم أو كلمات توجيه. أمّا `exclude_tags` فهي **أداة
-        #  الفصل** نفسها (القناة العامة تستثني الأنمي) — لا دليل على التخصّص.
-        #  لو اعتبرناها كذلك لبقي خلل القناة الرئيسية بلا إصلاح.
-        if ch.get("tags") or ch.get("keywords"):
+        # التخصيص الفعلي يحتاج وسمًا غير فارغ أو كلمات/وصفًا؛
+        # exclude_tags وحدها مجرد استثناء لقناة عامة.
+        tags = [str(tag).strip() for tag in (ch.get("tags") or []) if str(tag).strip()]
+        keywords = [str(word).strip() for word in (ch.get("keywords") or []) if str(word).strip()]
+        description = str(ch.get("description") or "").strip()
+        if tags or keywords or description:
             continue
-        srcs = ch.get("sources") or []
+        srcs = ch.get("sources")
         if srcs == ["*"]:
+            continue
+        if not isinstance(srcs, list) or not srcs:
             continue
         fixed.append(cid)
         if not dry_run:
@@ -623,6 +627,9 @@ def sector_of(channel_id: str, *, config_dir: str = "config") -> SectorProfile |
     description = str(channel.get("description") or "")
     if "أنمي" in tags and "مانغا" in tags:
         return detect("anime and manga")
+    # القناة ذات النجمة وبدون اختصاص صريح هي قناة عامة، لا نخمّن موضوعها من الاسم.
+    if not tags and not (channel.get("keywords") or []) and "*" in (channel.get("sources") or []):
+        return SECTORS["news"]
     custom_tag = next((tag for tag in tags if tag.startswith("custom_")), "")
     if custom_tag:
         for item in data.get("channels") or []:
