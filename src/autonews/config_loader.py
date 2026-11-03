@@ -262,7 +262,7 @@ class TranslationSettings:
     """تعريب المصادر الأجنبية."""
     enabled: bool = True
     target: str = "ar"
-    langs: list[str] = field(default_factory=lambda: ["en", "fr", "tr"])
+    langs: list[str] = field(default_factory=lambda: ["en", "fr", "tr", "ja", "ko", "zh"])
     max_per_run: int = 5             # سقف التعريب لكل دورة (حفظاً للحصة)
     keep_original_name: bool = True  # إبقاء الاسم الأصلي بين قوسين
     require_numbers_match: bool = True
