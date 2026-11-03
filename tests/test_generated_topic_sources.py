@@ -1,15 +1,16 @@
 """Regression coverage for generated topic feeds."""
 
+from dataclasses import replace
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from autonews.sectors import SECTORS, detect, suggest_sources
+from autonews.sectors import SECTORS, detect_custom_profile, suggest_sources
 
 
 def test_known_sector_without_custom_queries_gets_generated_feeds():
-    profile = SECTORS["gaming"]
+    profile = replace(SECTORS["gaming"], queries=())
     assert not profile.queries
     sources = suggest_sources(profile)
     assert len(sources) >= 4
@@ -19,7 +20,7 @@ def test_known_sector_without_custom_queries_gets_generated_feeds():
 
 
 def test_custom_topic_creates_deduplicated_language_feeds():
-    profile = detect("فضاء", "أخبار الفضاء والاكتشافات الفلكية")
+    profile = detect_custom_profile("قناة الفضاء", "أخبار الفضاء والاكتشافات الفلكية")
     assert profile is not None
     sources = suggest_sources(profile)
     ids = [item["id"] for item in sources]
