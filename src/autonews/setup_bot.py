@@ -1344,6 +1344,7 @@ class SetupBot:
         sector_key = str(task.get("sector", "") or "")
 
         description = ""
+        manual_tags = False
         # الصيغة القديمة (معرّف | اسم | وسوم) تبقى مدعومة.
         if "|" in raw:
             parts = [p.strip() for p in raw.split("|")]
@@ -1352,6 +1353,7 @@ class SetupBot:
                 cid = first
                 name = parts[1] if len(parts) > 1 else cid
                 tags = [t.strip() for t in (parts[2] if len(parts) > 2 else "").split(",") if t.strip()]
+                manual_tags = bool(tags)
             else:
                 name = first
                 description = parts[1] if len(parts) > 1 else ""
@@ -1373,10 +1375,10 @@ class SetupBot:
                     tags = list(chosen.tags)
                     cid = suggest_channel_id(name, existing=existing)
 
-        profile = detect(name, description)
-        if description.strip() and (profile is None or profile.key.startswith("custom_")):
+        profile = None if manual_tags else detect(name, description)
+        if not manual_tags and description.strip() and (profile is None or profile.key.startswith("custom_")):
             profile = detect_custom_profile(name, description)
-        if sector_key and not description.strip():
+        if sector_key and not description.strip() and not manual_tags:
             from .sectors import SECTORS
             profile = SECTORS.get(sector_key) or profile
         if profile is not None and not tags:
@@ -1418,6 +1420,9 @@ class SetupBot:
             if dup:
                 extra += (f"\n\n⚠️ تنبيه: عندك قناة بنفس الاختصاص (<code>{', '.join(dup)}</code>). "
                           f"القاعدتان ستنشران متشابهة — إمّا تعطّل واحدة أو تغيّر اختصاص هذه.")
+        elif manual_tags:
+            extra = ("\n🏷 احتفظت بالوسوم اليدوية كما أرسلتها. اربط لها مصدراً يحمل الوسوم نفسها "
+                     "حتى يصلها المحتوى المطابق فقط.")
         else:
             extra = ("\n🤷 لم أستطع تحديد اختصاص القناة. لم أربطها بالمصادر العامة "
                      "حتى لا تستقبل أخباراً عشوائية. أضف وصفاً أو اختر الاختصاص من «🧠 الاختصاص».")
