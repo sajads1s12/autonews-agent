@@ -10,6 +10,35 @@
 from __future__ import annotations
 
 import pytest
+from pathlib import Path
+
+# لقطة ثابتة لإعدادات الاختبار من ملفات Git النظيفة. بعض اختبارات التكامل
+# تستخدم الدوال الافتراضية التي تكتب في config/؛ نعيد الملفات قبل/بعد كل اختبار
+# حتى لا يتسرّب اختصاص اختباري إلى الاختبارات التالية أو إلى إعادة تشغيل CI.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_CONFIG_ROOT = _REPO_ROOT / "config"
+_CONFIG_SNAPSHOT = {
+    path.relative_to(_CONFIG_ROOT): path.read_bytes()
+    for path in _CONFIG_ROOT.rglob("*") if path.is_file()
+}
+
+
+@pytest.fixture(autouse=True)
+def _isolate_config_tree():
+    def restore():
+        _CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
+        for path in _CONFIG_ROOT.rglob("*"):
+            if path.is_file() and path.relative_to(_CONFIG_ROOT) not in _CONFIG_SNAPSHOT:
+                path.unlink()
+        for relative, content in _CONFIG_SNAPSHOT.items():
+            target = _CONFIG_ROOT / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+
+    restore()
+    yield
+    restore()
+
 
 #  متغيّرات تُغيّر سلوك النظام فعلياً. نُفرّغها قبل كل اختبار.
 OPERATIONAL_ENV = (
