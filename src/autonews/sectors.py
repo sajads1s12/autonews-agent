@@ -749,6 +749,34 @@ def gnews_url(query: str, language: str = "ar") -> str:
     return f"https://news.google.com/rss/search?q={quote(query)}&hl={hl}&gl={gl}&ceid={ceid}"
 
 
+def _queries_for_profile(sector: SectorProfile) -> tuple[str, ...]:
+    """استعلامات افتراضية للقطاعات المعروفة التي لا تملك استعلامات خاصة."""
+    if sector.queries:
+        return sector.queries
+
+    label = clean_name(sector.label)
+    if not label:
+        label = " ".join(clean_name(" ".join(sector.keywords)).split()[:4])
+    keywords: list[str] = []
+    seen: set[str] = set()
+    for keyword in sector.keywords:
+        value = clean_name(keyword)
+        if len(value) < 3 or value in _NOISE or value in seen:
+            continue
+        seen.add(value)
+        keywords.append(value)
+        if len(keywords) >= 4:
+            break
+
+    queries: list[str] = []
+    if label:
+        queries.append(f'"{label}" when:2d')
+    if keywords:
+        terms = " OR ".join(f'"{word}"' for word in keywords[:3])
+        queries.append(f'{terms} when:7d')
+    return tuple(queries)
+
+
 def suggest_sources(sector: SectorProfile, *,
                     existing: Iterable[dict] | None = None) -> list[dict]:
     """توليد مصادر بحث متعددة اللغات مع وسم خاص يمنع تسرّبها لقنوات أخرى."""
@@ -769,7 +797,7 @@ def suggest_sources(sector: SectorProfile, *,
     if chinese:
         languages.append("zh")
     tags = list(sector.tags) or ["أخبار"]
-    for query_index, query in enumerate(sector.queries, 1):
+    for query_index, query in enumerate(_queries_for_profile(sector), 1):
         for language in languages:
             sid = f"gnews_{sector.key}_{query_index}_{language}"
             if sid in have:
