@@ -908,38 +908,6 @@ class SetupBot:
         self.send(chat_id, f"<b>{title}</b>\n{note}\n\n{c.summary_line()}",
                   keyboard=channel_control_keyboard(cid, c))
 
-    def _on_review_mode(self, chat_id: str | int, data: str) -> None:
-        """rev:<cid|all>[:smart|always|never] · rev:all بلا وضع = شرح الخيارات."""
-        from .control import ControlStore, MODE_TITLES
-
-        parts = data.split(":")
-        target = parts[1] if len(parts) > 1 else "all"
-        mode = parts[2] if len(parts) > 2 else ""
-        control = ControlStore.load()
-
-        if not mode:
-            self.send(chat_id,
-                      "🤖 <b>نمط المراجعة</b>\n\n"
-                      "• <b>ذكية</b> — لا أسألك إلّا عن المنشور المشكوك فيه "
-                      "(درجة منخفضة · صياغة احتياطية · كلمات حسّاسة · بلا مصدر). "
-                      "🔴 <b>العاجل لا ينتظر أبداً.</b>\n"
-                      "• <b>كل منشور</b> — موافقتك قبل كل نشر.\n"
-                      "• <b>بلا مراجعة</b> — نشر مباشر.\n\n"
-                      "اختر القناة:",
-                      keyboard=([[{"text": channel_title(c), "callback_data": f"rev:{c}:smart"}]
-                                 for c in (self.known if target == "all" else [target])]
-                                + [[{"text": "↩️ لوحة التحكّم", "callback_data": "ctl"}]]))
-            return
-
-        targets = self.known if target == "all" else [target]
-        for cid in targets:
-            control.set_review(cid, mode)
-        self.send(chat_id,
-                  f"✅ النمط الجديد: <b>{MODE_TITLES.get(mode, mode)}</b>\n"
-                  f"على: {'كل القنوات' if target == 'all' else channel_title(target)}",
-                  keyboard=[[{"text": "↩️ لوحة التحكّم", "callback_data": "ctl"}]])
-        log.info("🎛 نمط المراجعة %s ← %s", target, mode)
-
     def _on_brand(self, chat_id: str | int, data: str) -> None:
         """brd:<cid> → طلب @handle · brd:<cid>:off/stamp/hidden للتبديل."""
         from .control import ControlStore  # noqa: F401 — التحقّق من التوفّر فقط
@@ -981,7 +949,7 @@ class SetupBot:
             rows = [[{"text": f"👁 {channel_title(i['channel'])} — {str((i.get('post') or {}).get('title', ''))[:28]}",
                       "callback_data": f"prv:{i['id']}"}] for i in items[:8]]
             rows.append([{"text": "↩️ الرئيسية", "callback_data": "panel"}])
-            self.send(chat_id, f"📥 <b>{len(items)}</b> منشور ينتظر موافقتك:", keyboard=rows)
+            self.send(chat_id, f"🗃 <b>{len(items)}</b> عنصر موافقة قديم — لا يمكن نشره؛ احذفه إن لم تعد تحتاجه:", keyboard=rows)
             return
 
         if action == "apv":
@@ -997,8 +965,8 @@ class SetupBot:
 
         if action == "prv":
             self.send(chat_id, preview_text(item), keyboard=[[
-                {"text": "✅ نشر الآن", "callback_data": f"apv:{item_id}"},
-                {"text": "🗑 حذف", "callback_data": f"rej:{item_id}"},
+                {"text": "🗑 حذف العنصر القديم", "callback_data": f"rej:{item_id}"},
+                {"text": "↩️ إغلاق", "callback_data": "panel"},
             ]])
             return
 
@@ -1008,19 +976,6 @@ class SetupBot:
                       keyboard=[[{"text": "📥 ما ينتظرني", "callback_data": "apv:list"}]])
             return
 
-        if action == "apv":
-            channel = self._channel(item.get("channel", ""))
-            if channel is None:
-                self.send(chat_id, "⚠️ القناة غير موجودة في الإعدادات — احذف العنصر.")
-                return
-            self.send(chat_id, "⏳ جارٍ النشر…")
-            ok, detail = self._publish_item(channel, item)
-            control.take(item_id)
-            self.send(chat_id,
-                      ("✅ <b>نُشر</b>\n" if ok else "❌ <b>فشل النشر</b>\n"
-                       f"{html.escape(str(detail)[:200])}\n"),
-                      keyboard=[[{"text": "📥 ما ينتظرني", "callback_data": "apv:list"},
-                                 {"text": "↩️ الرئيسية", "callback_data": "panel"}]])
 
     # ------------------------------------------------------------- أدوات
     def _channel(self, cid: str):
