@@ -570,7 +570,11 @@ def apply_to_channel(channel_id: str, name: str, *, description: str = "", confi
     if not override and current not in ('"*"', "*", ""):
         return False, "ℹ️ للقناة مصادر مضبوطة مسبقاً — تركتها كما هي (استخدم override لتغييرها)."
 
+    # لا نربط القناة بقائمة فارغة ثم نتركها صامتة؛ ولّد خلاصات الاختصاص أولاً.
+    source_note = ensure_sources(profile, config_dir=config_dir)
     picked, why = sources_for(profile, _load_sources(config_dir))
+    if source_note:
+        why = f"{why} · {source_note}"
     res_s = update_channel_sources(channel_id, picked, config_dir=config_dir)
     current_tags = _read_channel_tags(path, channel_id)
     remove_tags = [tag for tag in current_tags if tag not in profile.tags] if override else []
@@ -773,10 +777,7 @@ def suggest_sources(sector: SectorProfile, *,
 
 
 def ensure_sources(sector: SectorProfile, *, config_dir: str = "config") -> str:
-    """يضيف مصادر مقترحة للقطاع إن لم يكن له أي مصدر. يعيد ملخّصاً.
-
-    القاعدة: **لا نصمت**. قناة بلا مصادر لا تنشر — وهذا أسوأ من نشر عام.
-    """
+    """يضيف مصادر بحث مخصّصة للقطاع، ويحافظ على عزل القناة عن المصادر العامة."""
     from .editor import add_source  # noqa: F401  (نستخدم الإلحاق المباشر أدناه)
     from .utils import get_logger as _gl
 
