@@ -336,10 +336,8 @@ def detect(name: str, username: str = "") -> SectorProfile | None:
             style="أخبار أنمي ومانغا مع ذكر الحلقة أو الفصل وموعده.",
             priority=37, queries=a.queries + m.queries)
     if not scores:
-        # اختصاص مخصّص لأي اسم جديد: لا نفرض قائمة قطاعات ثابتة.
-        # نستخدم كلمات الاسم نفسها كاستعلام بحث، وننشئ وسماً خاصاً به
-        # حتى لا تختلط مصادره ببقية القنوات.
-        return None
+        # أي موضوع غير معروف يحصل على ملف مستقل بدلاً من استقبال كل الأخبار.
+        return detect_custom_profile(name, username)
     # «أخبار X» تعني X: القطاع الأخصّ يتقدّم دائماً على «الأخبار العامة» متى كانت له دلالة
     # كافية. القناة العامة تستقبل كل شيء أصلاً، فلا خسارة في اختيار الأخصّ، أما العكس
     # فيُسقط الأنمي/الرياضة في القناة العامة (وهو بالضبط ما فصلناه بـ exclude_tags).
@@ -542,8 +540,7 @@ def apply_to_channel(channel_id: str, name: str, *, description: str = "", confi
     if description.strip() and (profile is None or profile.key.startswith("custom_")):
         profile = detect_custom_profile(name, description)
     if profile is None:
-        return False, ("🤷 لم أتعرّف على القطاع من الاسم — ستبقى القناة تستقبل "
-                       "كل الأخبار (وهذا آمن). يمكنك ضبط الوسوم يدوياً.")
+        return False, "⚠️ لم أستطع استخراج موضوع واضح؛ أبقيت القناة بلا مصادر عامة حتى لا تستقبل أخباراً عشوائية."
 
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines(keepends=True)
