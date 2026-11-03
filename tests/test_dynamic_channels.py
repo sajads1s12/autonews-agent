@@ -6,7 +6,9 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from autonews.facts import has_independent_reports
-from autonews.sectors import detect, detect_custom_profile, sources_for
+from autonews.sectors import (
+    _source_langs, detect, detect_custom_profile, sources_for, suggest_sources,
+)
 
 
 def test_unknown_channel_gets_a_private_topic_profile():
@@ -47,3 +49,28 @@ def test_independent_reports_require_distinct_publishers():
     }
     assert not has_independent_reports(first, [first, same_publisher], sources)
     assert has_independent_reports(first, [first, independent], sources)
+
+
+
+def test_chinese_manhua_gets_its_own_profile_and_chinese_feeds():
+    profile = detect("قناة المانهوا الصينية")
+    assert profile is not None
+    assert profile.key == "manhua"
+    sources = suggest_sources(profile)
+    assert {item["lang"] for item in sources} == {"ar", "en", "zh"}
+    assert all("مانهوا صينية" in item["tags"] for item in sources)
+
+
+def test_manhwa_and_manga_include_original_language_feeds():
+    manhwa = detect("أخبار المانهوا الكورية")
+    manga = detect("آخر أخبار المانغا اليابانية")
+    assert manhwa is not None and manhwa.key == "manhwa"
+    assert manga is not None and manga.key == "manga"
+    assert "ko" in {item["lang"] for item in suggest_sources(manhwa)}
+    assert "ja" in {item["lang"] for item in suggest_sources(manga)}
+
+
+def test_google_news_language_detection_handles_non_english_languages():
+    assert _source_langs({"url": "https://news.google.com/rss/search?q=x&hl=ja&gl=JP&ceid=JP:ja"}) == {"ja"}
+    assert _source_langs({"url": "https://news.google.com/rss/search?q=x&hl=ko&gl=KR&ceid=KR:ko"}) == {"ko"}
+    assert _source_langs({"url": "https://news.google.com/rss/search?q=x&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"}) == {"zh"}
