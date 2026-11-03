@@ -5,7 +5,9 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from autonews.config_loader import Channel
 from autonews.facts import has_independent_reports
+from autonews.router import ContentRouter
 from autonews.sectors import (
     _source_langs, detect, detect_custom_profile, sources_for, suggest_sources,
 )
@@ -74,3 +76,16 @@ def test_google_news_language_detection_handles_non_english_languages():
     assert _source_langs({"url": "https://news.google.com/rss/search?q=x&hl=ja&gl=JP&ceid=JP:ja"}) == {"ja"}
     assert _source_langs({"url": "https://news.google.com/rss/search?q=x&hl=ko&gl=KR&ceid=KR:ko"}) == {"ko"}
     assert _source_langs({"url": "https://news.google.com/rss/search?q=x&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"}) == {"zh"}
+
+
+
+def test_specialized_channel_with_no_matching_feed_stays_silent():
+    channel = Channel(
+        id="tg_space", name="أخبار الفضاء", platform="telegram",
+        sources=[], tags=["custom_space"], enabled=True,
+    )
+    article = SimpleNamespace(
+        source_id="general", title="خبر عام", summary="",
+        tags=["أخبار"], published=None,
+    )
+    assert ContentRouter([channel]).targets(article) == []
