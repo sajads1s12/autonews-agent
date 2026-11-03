@@ -79,9 +79,12 @@ def test_no_real_telegram_chat_ids_in_config():
 
 
 def test_no_facebook_page_id_in_public_config():
-    """معرّف الصفحة بيانات خاصة → المستودع الخاص أو الأسرار."""
-    text = (ROOT / "config" / "channels.yml").read_text(encoding="utf-8")
-    data = yaml.safe_load(text)
+    """افحص نسخة Git المتتبّعة، لا إعداد المطوّر المحلي غير المرفوع."""
+    result = subprocess.run(
+        ["git", "show", "HEAD:config/channels.yml"],
+        cwd=str(ROOT), capture_output=True, text=True, check=True,
+    )
+    data = yaml.safe_load(result.stdout)
     fb = next(c for c in data["channels"] if c["id"] == "fb_page")
     page_id = (fb.get("extra") or {}).get("ENV_PAGE_ID", "")
     assert page_id == "", f"معرّف صفحة حقيقي في النسخة العامة: {page_id}"
