@@ -99,7 +99,7 @@ def test_matrix_warns_about_general_channels():
     from autonews.channels_main import load_channels, render_matrix
 
     text = render_matrix(load_channels("config"))
-    assert "مصفوفة التوجيه" in text
+    assert "اختصاصات القنوات ومصادرها" in text
     assert "قنوات عامة" in text
 
 
@@ -129,9 +129,10 @@ def test_matrix_respects_exclude_tags():
     from autonews.channels_main import load_channels, render_matrix
 
     text = render_matrix(load_channels("config"))
-    anime_line = next(l for l in text.splitlines() if l.startswith("أنمي"))
-    assert "tg_anime" in anime_line
-    assert "tg_main" not in anime_line, "الرئيسية تستثني الأنمي — لا تظهر في المصفوفة"
+    lines = text.splitlines()
+    anime_line = next(l for l in lines if "الأنمي" in l and "tg_anime" in l)
+    assert "tg_main" not in anime_line
+    assert "tg_main" not in anime_line, "الرئيسية لا ينبغي أن تظهر ضمن مدخل قناة الأنمي"
 
 
 def test_add_channel_keeps_yaml_valid(tmp_path):
