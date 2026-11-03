@@ -1,4 +1,5 @@
 """Regression tests for dynamic channel profiles and independent reporting."""
+from dataclasses import replace
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -9,7 +10,7 @@ from autonews.config_loader import Channel
 from autonews.facts import has_independent_reports
 from autonews.router import ContentRouter
 from autonews.sectors import (
-    _source_langs, detect, detect_custom_profile, sources_for, suggest_sources,
+    SECTORS, _source_langs, detect, detect_custom_profile, sources_for, suggest_sources,
 )
 
 
@@ -89,3 +90,12 @@ def test_specialized_channel_with_no_matching_feed_stays_silent():
         tags=["أخبار"], published=None,
     )
     assert ContentRouter([channel]).targets(article) == []
+
+
+
+def test_profiles_without_handwritten_queries_still_get_topic_feeds():
+    profile = replace(SECTORS["health"], queries=())
+    feeds = suggest_sources(profile)
+    assert feeds
+    assert {item["lang"] for item in feeds} == {"ar", "en"}
+    assert all("صحة" in item["tags"] or "طب" in item["tags"] for item in feeds)
