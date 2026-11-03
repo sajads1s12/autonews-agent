@@ -99,7 +99,7 @@ def test_matrix_warns_about_general_channels():
     from autonews.channels_main import load_channels, render_matrix
 
     text = render_matrix(load_channels("config"))
-    assert "اختصاصات القنوات ومصادرها" in text
+    assert "مصفوفة التوجيه" in text
     assert "قنوات عامة" in text
 
 
