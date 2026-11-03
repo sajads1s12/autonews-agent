@@ -288,8 +288,8 @@ def test_warn_when_two_channels_share_sector(tmp_path, monkeypatch):
     assert "تنبيه" in sent[-1] and "tg_anime" in sent[-1]
 
 
-def test_unknown_name_falls_back_safely(tmp_path, monkeypatch):
-    """اسم مبهم → لا اختصاص، لكن القناة تستقبل كل شيء (آمن) وتُضاف بنجاح."""
+def test_unknown_name_stays_unrouted_until_topic_is_known(tmp_path, monkeypatch):
+    """الاسم المبهم لا يُربط بالمصادر العامة ولا يستقبل أخباراً عشوائية."""
     from autonews.config_loader import load_config
 
     bot, cfg, sent = _bot_with_config(tmp_path, monkeypatch)
