@@ -338,8 +338,10 @@ def detect(name: str, username: str = "") -> SectorProfile | None:
     """
     combined = clean_name(f"{name} {username}")
     # المصطلح الصيني مستقل عن المانهوا الكورية رغم تشابه الكتابة العربية.
-    if any(token in combined for token in
-           ("مانهوا صينيه", "مانهاوا صينيه", "مانهوا صيني", "manhua", "chinese comics")):
+    words = combined.split()
+    has_manhua = any(token in combined for token in ("مانهوا", "مانهاوا", "manhua", "chinese comics"))
+    has_chinese = any("صيني" in word or "chinese" in word for word in words)
+    if has_manhua and has_chinese:
         return SECTORS["manhua"]
 
     scores = score(name, username)
