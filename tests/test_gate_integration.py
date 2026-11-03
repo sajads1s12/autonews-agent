@@ -80,40 +80,39 @@ def control(tmp_path) -> ControlStore:
 
 
 # --------------------------------------------------------------------------- #
-#  النتائج الأربع الممكنة
+#  النشر بلا موافقات يدوية
 # --------------------------------------------------------------------------- #
 def test_clean_post_publishes_immediately(control):
     decision, _ = _gate(control, "tg_main", FakePost(), breaking=False,
                         verdict=FakeVerdict(score=0.95))
     assert decision == "publish"
-    assert control.pending() == []
+    assert control.pending(kind=KIND_APPROVAL) == []
 
 
-def test_low_score_goes_to_approval_queue(control):
+def test_low_score_is_discarded_not_queued(control):
     decision, info = _gate(control, "tg_main", FakePost(), breaking=False,
                            verdict=FakeVerdict(score=0.40))
-    assert decision == "review"
-    items = control.pending(kind=KIND_APPROVAL)
-    assert len(items) == 1 and items[0]["score"] == 0.40
-    assert any("درجة" in r for r in items[0]["reasons"])
+    assert decision == "discard"
+    assert any("درجة" in r for r in info["why"])
+    assert control.pending(kind=KIND_APPROVAL) == []
 
 
-def test_breaking_bypasses_review_and_quiet(control):
-    control.get("tg_main").set_quiet(0, 24)          # هدوء كامل اليوم
+def test_breaking_does_not_bypass_trust_gate(control):
+    control.get("tg_main").set_quiet(0, 24)
     decision, _ = _gate(control, "tg_main", FakePost(), breaking=True,
                         verdict=FakeVerdict(score=0.10))
-    assert decision == "publish"
+    assert decision == "discard"
     assert control.pending(kind=KIND_APPROVAL) == []
     assert control.pending(kind=KIND_SCHEDULED) == []
 
 
-def test_quiet_hours_defers_not_drops(control):
+def test_quiet_hours_defer_clean_post(control):
     control.get("tg_main").set_quiet(0, 24)
     decision, info = _gate(control, "tg_main", FakePost(), breaking=False,
                            verdict=FakeVerdict(score=0.95))
     assert decision == "deferred" and info["quiet"]
     queued = control.pending(kind=KIND_SCHEDULED)
-    assert len(queued) == 1, "الخبر يُحفظ في الطابور ولا يُفقد"
+    assert len(queued) == 1
     assert queued[0]["post"]["title"] == FakePost().title
 
 
@@ -124,49 +123,31 @@ def test_paused_channel_blocks_publish(control):
     assert decision == "blocked" and "متوقّفة" in info["why"]
 
 
-def test_always_mode_reviews_even_perfect_post(control):
+def test_legacy_review_mode_cannot_force_approval(control):
     control.get("tg_main").set_review("always")
-    decision, _ = _gate(control, "tg_main", FakePost(), breaking=False,
-                        verdict=FakeVerdict(score=1.0), review_mode="always")
-    assert decision == "review"
-
-
-def test_never_mode_publishes_bad_post(control):
-    control.get("tg_main").set_review("never")
-    decision, _ = _gate(control, "tg_main", FakePost(used_fallback=True),
-                        breaking=False, verdict=FakeVerdict(score=0.1),
-                        review_mode="never")
-    assert decision == "publish"
-
-
-# --------------------------------------------------------------------------- #
-#  دورة حياة العنصر: انتظار → نشر
-# --------------------------------------------------------------------------- #
-def test_approved_item_can_be_published_and_removed(control):
-    decision, info = _gate(control, "tg_main", FakePost(), breaking=False,
-                           verdict=FakeVerdict(score=0.30))
-    assert decision == "review"
-    item_id = info["id"]
-
-    # ما زال في الطابور حتى يضغط المستخدم
-    assert len(control.pending(kind=KIND_APPROVAL)) == 1
-    item = control.item(item_id)
-    assert item["channel"] == "tg_main"
-
-    taken = control.take(item_id)
-    assert taken is not None
+    clean, _ = _gate(control, "tg_main", FakePost(), breaking=False,
+                     verdict=FakeVerdict(score=1.0), review_mode="always")
+    weak, _ = _gate(control, "tg_main", FakePost(used_fallback=True),
+                    breaking=False, verdict=FakeVerdict(score=0.1),
+                    review_mode="never")
+    assert clean == "publish"
+    assert weak == "discard"
     assert control.pending(kind=KIND_APPROVAL) == []
 
 
-def test_queue_file_is_readable_json(tmp_path):
+def test_legacy_approval_queue_is_not_created_by_gate(control):
+    decision, _ = _gate(control, "tg_main", FakePost(), breaking=False,
+                        verdict=FakeVerdict(score=0.30))
+    assert decision == "discard"
+    assert control.pending(kind=KIND_APPROVAL) == []
+
+
+def test_queue_file_is_not_created_for_discarded_post(tmp_path):
     store = ControlStore.load(tmp_path / "control.json")
-    _gate(store, "tg_main", FakePost(), breaking=False, verdict=FakeVerdict(score=0.2))
-    data = json.loads((tmp_path / "control.json").read_text(encoding="utf-8"))
-    assert data["version"] == 1
-    assert len(data["queue"]) == 1
-    assert data["channels"]["tg_main"]["review"] == "smart"
-
-
+    decision, _ = _gate(store, "tg_main", FakePost(), breaking=False,
+                        verdict=FakeVerdict(score=0.2))
+    assert decision == "discard"
+    assert not (tmp_path / "control.json").exists()
 # --------------------------------------------------------------------------- #
 #  التكامل مع باقي النظام
 # --------------------------------------------------------------------------- #
