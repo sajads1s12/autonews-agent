@@ -384,17 +384,12 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
           • ساعات الهدوء **تُؤجّل** ولا تُلغي — تُنشر تلقائياً عند فتح النافذة.
         """
         ctl = settings.control
-        if not ctl.enabled:
-            return "publish"
         c = control.get(channel.id)
 
-        # (٠) أسلوب المراجعة: إعداد القناة من البوت يتقدّم على الافتراضي العام
-        mode = c.review if c.review != "smart" or ctl.review_mode == "smart" else ctl.review_mode
-        mode = ctl.review_mode if c.review == "smart" and channel.review_required is False else mode
-
+        # بوابة الثقة تعمل دائماً، حتى عند تعطيل ساعات الهدوء/السقوف.
         score = float(getattr(verdict, "score", 1.0) or 1.0)
         extra_reasons = list(getattr(verdict, "warnings", []) or [])
-        action, why = decide(mode=mode, post=post, score=score, reasons=extra_reasons,
+        action, why = decide(mode="smart", post=post, score=score, reasons=extra_reasons,
                              min_score=c.min_score or ctl.min_score, breaking=breaking)
 
         # لا موافقات: المحتوى غير الموثوق يُستبعد نهائياً.
@@ -405,6 +400,9 @@ def run_once(settings: Settings, *, limit: int | None = None) -> RunReport:
             report.add(f"🗑 استُبعد ({channel.name}) — {truncate(post.title, 65)}")
             state.mark(art.fp, "skipped", reason=f"trust_gate:{reason[:140]}")
             return "discard"
+
+        if not ctl.enabled:
+            return "publish"
 
         # (١) ساعات الهدوء — تُؤجّل (إلّا العاجل)
         hour = local_hour(tz_offset)
