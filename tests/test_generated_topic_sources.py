@@ -56,5 +56,9 @@ def test_japanese_korean_and_chinese_articles_are_eligible_for_translation():
     for language, headline in samples.items():
         article = SimpleNamespace(lang=language, title=headline, summary=headline, content="")
         assert needs_translation(article, target="ar")
+        mixed_script = SimpleNamespace(
+            lang=language, title=f"{headline} Naruto", summary=headline, content=""
+        )
+        assert needs_translation(mixed_script, target="ar")
         prompt = build_translate_prompt(article, target="ar")
         assert {"ja": "اليابانية", "ko": "الكورية", "zh": "الصينية"}[language] in prompt
